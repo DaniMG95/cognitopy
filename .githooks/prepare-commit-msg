@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+COMMIT_MSG_FILE=$1
+python .githooks/prepare-commit-msg.py "$COMMIT_MSG_FILE"

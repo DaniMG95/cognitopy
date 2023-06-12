@@ -1,0 +1,9 @@
+[run]
+source=app
+omit=
+    app/main.py
+    app/db.py
+    app/const.py
+[report]
+skip_empty=True
+include=app/*
