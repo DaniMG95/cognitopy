@@ -112,10 +112,7 @@ class CognitoPy:
                     self.__SECRET_HASH: self.__get_secret_hash(username=username),
                 },
             )
-            return {
-                self.__ACCESS_TOKEN_KEY: response[self.__AUTHENTICATION_RESULT][self.__ACCESS_TOKEN],
-                self.__REFRESH_TOKEN_KEY: response[self.__AUTHENTICATION_RESULT][self.__REFRESH_TOKEN],
-            }
+            return response[self.__AUTHENTICATION_RESULT][self.__ACCESS_TOKEN]
 
         except ClientError as e:
             raise ExceptionAuthCognito(e.response[self.__ERROR][self.__MESSAGE])
@@ -234,7 +231,7 @@ class CognitoPy:
         except ClientError as e:
             raise ExceptionAuthCognito(e.response[self.__ERROR][self.__MESSAGE])
 
-    def create_group(self, group_name: str, description: str, precedence: int, role_arn: str = None) -> None:
+    def admin_create_group(self, group_name: str, description: str, precedence: int, role_arn: str = None) -> None:
         if not isinstance(group_name, str) or not isinstance(description, str) or not isinstance(precedence, int):
             raise ValueError(
                 "The group_name, description and role arm should be strings" " and precedence should be an integer."
@@ -251,7 +248,7 @@ class CognitoPy:
         except ClientError as e:
             raise ExceptionAuthCognito(e.response[self.__ERROR][self.__MESSAGE])
 
-    def add_user_to_group(self, username: str, group_name: str) -> None:
+    def admin_add_user_to_group(self, username: str, group_name: str) -> None:
         if not isinstance(username, str) or not isinstance(group_name, str):
             raise ValueError("The username and group_name should be strings.")
         try:
@@ -261,7 +258,7 @@ class CognitoPy:
         except ClientError as e:
             raise ExceptionAuthCognito(e.response[self.__ERROR][self.__MESSAGE])
 
-    def delete_group(self, group_name: str) -> None:
+    def admin_delete_group(self, group_name: str) -> None:
         if not isinstance(group_name, str):
             raise ValueError("The group_name should be a string.")
         try:
@@ -269,7 +266,7 @@ class CognitoPy:
         except ClientError as e:
             raise ExceptionAuthCognito(e.response[self.__ERROR][self.__MESSAGE])
 
-    def remove_user_from_group(self, username: str, group_name: str) -> None:
+    def admin_remove_user_from_group(self, username: str, group_name: str) -> None:
         if not isinstance(username, str) or not isinstance(group_name, str):
             raise ValueError("The username and group_name should be strings.")
         try:

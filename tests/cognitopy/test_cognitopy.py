@@ -86,9 +86,7 @@ class TestCognito(TestCase):
     @patch("cognitopy.cognitopy.boto3.client")
     def test_renew_access_token(self, mock_client: Mock, mock_get_info: Mock):
         mock_initiate_auth = mock_client.return_value.initiate_auth
-        mock_initiate_auth.return_value = {
-            "AuthenticationResult": {"AccessToken": "test1232", "RefreshToken": "test2332"}
-        }
+        mock_initiate_auth.return_value = {"AuthenticationResult": {"AccessToken": "test1232"}}
         mock_get_info.return_value = {"username": "test1", "groups": []}
         expected_calls_auth = [
             call(
@@ -101,7 +99,7 @@ class TestCognito(TestCase):
             )
         ]
         expected_calls_get_info = [call(access_token="access_token_test")]
-        expected_response = {"access_token": "test1232", "refresh_token": "test2332"}
+        expected_response = "test1232"
 
         response = self.cognito.renew_access_token(access_token="access_token_test", refresh_token="refresh_token_test")
 
@@ -618,27 +616,27 @@ class TestCognito(TestCase):
         self.assertEqual(str(exc.exception), "The username should be a string.")
 
     @patch("cognitopy.cognitopy.boto3.client")
-    def test_create_group(self, mock_client: Mock):
+    def test_admin_create_group(self, mock_client: Mock):
         mock_create_group = mock_client.return_value.create_group
         expected_calls = [
             call(GroupName="test1", Description="test1", Precedence=1, RoleArn="arn_test", UserPoolId="eu-12_test")
         ]
 
-        self.cognito.create_group(group_name="test1", description="test1", precedence=1, role_arn="arn_test")
+        self.cognito.admin_create_group(group_name="test1", description="test1", precedence=1, role_arn="arn_test")
 
         self.assertEqual(mock_create_group.call_args_list, expected_calls)
 
     @patch("cognitopy.cognitopy.boto3.client")
-    def test_create_group_without_role(self, mock_client: Mock):
+    def test_admin_create_group_without_role(self, mock_client: Mock):
         mock_create_group = mock_client.return_value.create_group
         expected_calls = [call(GroupName="test1", Description="test1", Precedence=1, UserPoolId="eu-12_test")]
 
-        self.cognito.create_group(group_name="test1", description="test1", precedence=1)
+        self.cognito.admin_create_group(group_name="test1", description="test1", precedence=1)
 
         self.assertEqual(mock_create_group.call_args_list, expected_calls)
 
     @patch("cognitopy.cognitopy.boto3.client")
-    def test_create_group_error(self, mock_client: Mock):
+    def test_admin_create_group_error(self, mock_client: Mock):
         mock_create_group = mock_client.return_value.create_group
         mock_create_group.side_effect = ClientError(
             error_response={"Error": {"Message": "Precedence incorrect."}}, operation_name="test"
@@ -646,17 +644,17 @@ class TestCognito(TestCase):
         expected_calls = [call(GroupName="test1", Description="test1", Precedence=1, UserPoolId="eu-12_test")]
 
         with self.assertRaises(ExceptionAuthCognito) as exc:
-            self.cognito.create_group(group_name="test1", description="test1", precedence=1)
+            self.cognito.admin_create_group(group_name="test1", description="test1", precedence=1)
 
         self.assertEqual(mock_create_group.call_args_list, expected_calls)
         self.assertEqual(str(exc.exception), "Precedence incorrect.")
 
     @patch("cognitopy.cognitopy.boto3.client")
-    def test_create_group_error_type(self, mock_client: Mock):
+    def test_admin_create_group_error_type(self, mock_client: Mock):
         mock_create_group = mock_client.return_value.create_group
 
         with self.assertRaises(ValueError) as exc:
-            self.cognito.create_group(group_name="test1", description="test1", precedence="1")
+            self.cognito.admin_create_group(group_name="test1", description="test1", precedence="1")
 
         self.assertEqual(mock_create_group.call_count, 0)
         self.assertEqual(
@@ -665,16 +663,16 @@ class TestCognito(TestCase):
         )
 
     @patch("cognitopy.cognitopy.boto3.client")
-    def test_add_user_to_group(self, mock_client: Mock):
+    def test_admin_add_user_to_group(self, mock_client: Mock):
         mock_add_user_to_group = mock_client.return_value.admin_add_user_to_group
         expected_calls = [call(Username="test1", GroupName="test_group", UserPoolId="eu-12_test")]
 
-        self.cognito.add_user_to_group(group_name="test_group", username="test1")
+        self.cognito.admin_add_user_to_group(group_name="test_group", username="test1")
 
         self.assertEqual(mock_add_user_to_group.call_args_list, expected_calls)
 
     @patch("cognitopy.cognitopy.boto3.client")
-    def test_add_user_to_group_error(self, mock_client: Mock):
+    def test_admin_add_user_to_group_error(self, mock_client: Mock):
         mock_add_user_to_group = mock_client.return_value.admin_add_user_to_group
         mock_add_user_to_group.side_effect = ClientError(
             error_response={"Error": {"Message": "Username incorrect."}}, operation_name="test"
@@ -682,32 +680,32 @@ class TestCognito(TestCase):
         expected_calls = [call(Username="test1", GroupName="test_group", UserPoolId="eu-12_test")]
 
         with self.assertRaises(ExceptionAuthCognito) as exc:
-            self.cognito.add_user_to_group(group_name="test_group", username="test1")
+            self.cognito.admin_add_user_to_group(group_name="test_group", username="test1")
 
         self.assertEqual(mock_add_user_to_group.call_args_list, expected_calls)
         self.assertEqual(str(exc.exception), "Username incorrect.")
 
     @patch("cognitopy.cognitopy.boto3.client")
-    def test_add_user_to_group_error_type(self, mock_client: Mock):
+    def test_admin_add_user_to_group_error_type(self, mock_client: Mock):
         mock_add_user_to_group = mock_client.return_value.admin_add_user_to_group
 
         with self.assertRaises(ValueError) as exc:
-            self.cognito.add_user_to_group(group_name="test_group", username=1)
+            self.cognito.admin_add_user_to_group(group_name="test_group", username=1)
 
         self.assertEqual(mock_add_user_to_group.call_count, 0)
         self.assertEqual(str(exc.exception), "The username and group_name should be strings.")
 
     @patch("cognitopy.cognitopy.boto3.client")
-    def test_delete_group(self, mock_client: Mock):
+    def test_admin_delete_group(self, mock_client: Mock):
         mock_delete_group = mock_client.return_value.delete_group
         expected_calls = [call(GroupName="test_group", UserPoolId="eu-12_test")]
 
-        self.cognito.delete_group(group_name="test_group")
+        self.cognito.admin_delete_group(group_name="test_group")
 
         self.assertEqual(mock_delete_group.call_args_list, expected_calls)
 
     @patch("cognitopy.cognitopy.boto3.client")
-    def test_delete_group_error(self, mock_client: Mock):
+    def test_admin_delete_group_error(self, mock_client: Mock):
         mock_delete_group = mock_client.return_value.delete_group
         mock_delete_group.side_effect = ClientError(
             error_response={"Error": {"Message": "Group name is incorrect."}}, operation_name="test"
@@ -715,32 +713,32 @@ class TestCognito(TestCase):
         expected_calls = [call(GroupName="test_group", UserPoolId="eu-12_test")]
 
         with self.assertRaises(ExceptionAuthCognito) as exc:
-            self.cognito.delete_group(group_name="test_group")
+            self.cognito.admin_delete_group(group_name="test_group")
 
         self.assertEqual(mock_delete_group.call_args_list, expected_calls)
         self.assertEqual(str(exc.exception), "Group name is incorrect.")
 
     @patch("cognitopy.cognitopy.boto3.client")
-    def test_delete_group_error_type(self, mock_client: Mock):
+    def test_admin_delete_group_error_type(self, mock_client: Mock):
         mock_delete_group = mock_client.return_value.delete_group
 
         with self.assertRaises(ValueError) as exc:
-            self.cognito.delete_group(group_name=1)
+            self.cognito.admin_delete_group(group_name=1)
 
         self.assertEqual(mock_delete_group.call_count, 0)
         self.assertEqual(str(exc.exception), "The group_name should be a string.")
 
     @patch("cognitopy.cognitopy.boto3.client")
-    def test_remove_user_from_group(self, mock_client: Mock):
+    def test_admin_remove_user_from_group(self, mock_client: Mock):
         mock_remove_user_from_group = mock_client.return_value.admin_remove_user_from_group
         expected_calls = [call(GroupName="test_group", Username="test1", UserPoolId="eu-12_test")]
 
-        self.cognito.remove_user_from_group(group_name="test_group", username="test1")
+        self.cognito.admin_remove_user_from_group(group_name="test_group", username="test1")
 
         self.assertEqual(mock_remove_user_from_group.call_args_list, expected_calls)
 
     @patch("cognitopy.cognitopy.boto3.client")
-    def test_remove_user_from_group_error(self, mock_client: Mock):
+    def test_admin_remove_user_from_group_error(self, mock_client: Mock):
         mock_remove_user_from_group = mock_client.return_value.admin_remove_user_from_group
         mock_remove_user_from_group.side_effect = ClientError(
             error_response={"Error": {"Message": "Group name is incorrect."}}, operation_name="test"
@@ -748,17 +746,17 @@ class TestCognito(TestCase):
         expected_calls = [call(GroupName="test_group", Username="test1", UserPoolId="eu-12_test")]
 
         with self.assertRaises(ExceptionAuthCognito) as exc:
-            self.cognito.remove_user_from_group(group_name="test_group", username="test1")
+            self.cognito.admin_remove_user_from_group(group_name="test_group", username="test1")
 
         self.assertEqual(mock_remove_user_from_group.call_args_list, expected_calls)
         self.assertEqual(str(exc.exception), "Group name is incorrect.")
 
     @patch("cognitopy.cognitopy.boto3.client")
-    def test_remove_user_from_group_error_type(self, mock_client: Mock):
+    def test_admin_remove_user_from_group_error_type(self, mock_client: Mock):
         mock_remove_user_from_group = mock_client.return_value.admin_remove_user_from_group
 
         with self.assertRaises(ValueError) as exc:
-            self.cognito.remove_user_from_group(group_name="test_group", username=1)
+            self.cognito.admin_remove_user_from_group(group_name="test_group", username=1)
 
         self.assertEqual(mock_remove_user_from_group.call_count, 0)
         self.assertEqual(str(exc.exception), "The username and group_name should be strings.")
