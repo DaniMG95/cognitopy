@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 120
+
+[project]
+name = "cognitopy"
+version = "0.0.1"
+authors = [
+  { name="Daniel Muñoz Gonzalez", email="dani16595@gmail.com" },
+]
+description = "Python package to use aws cognito in a simple way"
+readme = "README.md"
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/DaniMG95/cognitopy"
+"Bug Tracker" = "https://github.com/DaniMG95/cognitopy/issues"

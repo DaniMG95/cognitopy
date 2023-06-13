@@ -1,0 +1,28 @@
+repos:
+-   repo: https://github.com/ambv/black
+    rev: 22.12.0
+    hooks:
+    - id: black
+      exclude: ^.github/
+      language_version: python3.10
+      stages: [commit]
+-   repo: https://github.com/pycqa/flake8
+    rev: 6.0.0
+    hooks:
+    - id: flake8
+      exclude: ^.github/
+      stages: [commit]
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+    - id: no-commit-to-branch
+    - id: detect-private-key
+      stages: [commit]
+-   repo: local
+    hooks:
+      - id: auto-commit-message
+        name: generate commit message
+        entry: .githooks/prepare-commit-msg
+        language: script
+        stages: [prepare-commit-msg]
+        always_run: true
