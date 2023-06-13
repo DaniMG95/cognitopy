@@ -5,7 +5,7 @@ import hashlib
 import base64
 from datetime import datetime
 from jose import jwt, JWTError
-from cognitopy.exceptions import (
+from .exceptions import (
     ExceptionJWTCognito,
     ExceptionAuthCognito,
     ExceptionConnectionCognito,
