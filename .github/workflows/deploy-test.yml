@@ -1,10 +1,7 @@
 name: Create Package and Deploy to TestPyPI
 run-name: ${{ github.head_ref }} Create Package and Deploy to TestPyPI
-on: 
-  push:
-    branches:
-      - release/*
-
+on:
+  workflow_dispatch:
 jobs:
   pypi-publish:
     name: Upload release to PyPI
