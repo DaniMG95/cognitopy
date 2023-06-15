@@ -1,18 +1,16 @@
-name: Create Release and Package and Deploy to PyPI
-run-name: ${{ github.head_ref }} Create Release and Package and Deploy to PyPI
+name: Create Package and Deploy to PyPI
+run-name: ${{ github.head_ref }} Create Package and Deploy to PyPI
 on: 
   push:
     branches:
       - main
-
 jobs:
   release-on-push:
+    permissions: write-all
     runs-on: ubuntu-latest
     environment:
       name: pypi
       url: https://pypi.org/p/cognitopy/
-    permissions:
-      id-token: write
     steps:
       - name: Check out repository code
         uses: actions/checkout@v3
@@ -25,21 +23,7 @@ jobs:
       - name: Building Project
         run: python -m pip install --upgrade build; python -m build
 
-      - name: Publish package distributions to TestPyPI
+      - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
-      - id: release
-        uses: rymndhng/release-on-push-action@master
-        with:
-          bump_version_scheme: minor
-          tag_prefix: v
-          release_name: "Release <RELEASE_TAG>"
-          use_github_release_notes: true
-
-      - name: Check Output Parameters
-        run: |
-          echo "Got tag name ${{ steps.release.outputs.tag_name }}"
-          echo "Got release version ${{ steps.release.outputs.version }}"
-          echo "Upload release artifacts to ${{ steps.release.outputs.upload_url }}"\
-
