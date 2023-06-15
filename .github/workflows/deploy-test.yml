@@ -2,6 +2,10 @@ name: Create Package and Deploy to TestPyPI
 run-name: ${{ github.head_ref }} Create Package and Deploy to TestPyPI
 on:
   workflow_dispatch:
+    inputs:
+      branch:
+        description: 'The branch to build'
+        required: true
 jobs:
   pypi-publish:
     name: Upload release to PyPI
@@ -14,6 +18,8 @@ jobs:
     steps:
       - name: Check out repository code
         uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.inputs.branch }}
 
       - name: Set up Python 3.10
         uses: actions/setup-python@v3
