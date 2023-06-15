@@ -1,5 +1,5 @@
-name: Create Release and Package and Deploy to PyPI
-run-name: ${{ github.head_ref }} Create Release and Package and Deploy to PyPI
+name: Create Package and Deploy to PyPI
+run-name: ${{ github.head_ref }} Create Package and Deploy to PyPI
 on: 
   push:
     branches:
