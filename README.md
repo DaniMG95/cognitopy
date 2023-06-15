@@ -1,3 +1,6 @@
+[![PyPI version](https://img.shields.io/pypi/v/cognitopy.svg?style=plastic)](https://pypi.org/project/cognitopy/)
+![PyPI - Downloads](https://img.shields.io/pypi/dm/cognitopy?style=plastic)
+
 # cognitopy
 This is a package that will allow you to use the aws Cognito technology, so for now we are going to allow the management of users, authentication and creation of groups by Roles.  
 The potential of this package is the ease of management of all these functionalities and only creating an object with 3 parameters.
