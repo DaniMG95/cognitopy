@@ -791,3 +791,14 @@ class TestCognito(TestCase):
 
         self.assertEqual(mock_jwt.call_count, 0)
         self.assertEqual(str(exc.exception), "The access_token should be a string.")
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    @patch("cognitopy.cognitopy.CognitoPy.admin_delete_user")
+    def test_context_manager(self, mock_create_user: Mock, mock_client: Mock):
+        mock_close = mock_client.return_value.close
+
+        with CognitoPy(userpool_id="eu-12_test", client_id="dtest34453", client_secret="dtest34334444") as cognito:
+            cognito.admin_delete_user(username="test1")
+
+        self.assertEqual(mock_create_user.call_args_list, [call(username="test1")])
+        self.assertEqual(mock_close.call_count, 1)
