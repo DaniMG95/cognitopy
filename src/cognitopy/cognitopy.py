@@ -11,7 +11,7 @@ from .exceptions import (
     ExceptionConnectionCognito,
     ExceptionTokenExpired,
 )
-from .enums import MessageAction, DesiredDelivery
+from .enums import MessageAction, DesiredDelivery, AuthFlow, AdminAuthFlow
 
 
 class CognitoPy:
@@ -91,6 +91,37 @@ class CognitoPy:
             for key, value in attributes.items()
         ]
 
+    def __user_to_dict(self, user: dict) -> dict:
+        data = {
+            self.__USERNAME.lower(): user[self.__USERNAME.capitalize()],
+            "enabled": user["Enabled"],
+            "user_status": user["UserStatus"],
+            "user_create_date": user["UserCreateDate"],
+            "user_last_modified_date": user["UserLastModifiedDate"],
+        }
+        for attribute in user["UserAttributes"]:
+            data[attribute["Name"]] = attribute["Value"]
+        return data
+
+    def __initiate_auth(self, auth_parameters: dict, auth_flow: AdminAuthFlow | AuthFlow, admin: bool = False) -> dict:
+        if not isinstance(auth_parameters, dict) or not (
+            isinstance(auth_flow, AdminAuthFlow) or isinstance(auth_flow, AuthFlow)
+        ):
+            raise ValueError("The auth_parameters should be a dict and auth_flow should be AdminAuthFlow.")
+        try:
+            args = {}
+            if admin:
+                args["UserPoolId"] = self.__userpool_id
+                function_auth = self.__client.admin_initiate_auth
+            else:
+                function_auth = self.__client.initiate_auth
+            response = function_auth(
+                ClientId=self.__client_id, AuthFlow=auth_flow.value, AuthParameters=auth_parameters, **args
+            )
+        except ClientError as e:
+            raise ExceptionAuthCognito(e.response[self.__ERROR][self.__MESSAGE])
+        return response
+
     @staticmethod
     def check_expired_token(access_token: str) -> bool:
         if not isinstance(access_token, str):
@@ -109,19 +140,17 @@ class CognitoPy:
     def close_connection(self) -> None:
         self.__client.close()
 
-    def renew_access_token(self, access_token: str, refresh_token: str) -> dict:
+    def renew_access_token(self, access_token: str, refresh_token: str) -> str:
         if not isinstance(access_token, str) or not isinstance(refresh_token, str):
             raise ValueError("The access_token and refresh_token should be strings.")
         username = self.get_info_user_by_token(access_token=access_token)[self.__USERNAME.lower()]
+        auth_parameters = {
+            self.__REFRESH_TOKEN_KEY.upper(): refresh_token,
+            self.__SECRET_HASH: self.__get_secret_hash(username=username),
+        }
+
         try:
-            response = self.__client.initiate_auth(
-                ClientId=self.__client_id,
-                AuthFlow=self.__REFRESH_TOKEN_AUTH,
-                AuthParameters={
-                    self.__REFRESH_TOKEN_KEY.upper(): refresh_token,
-                    self.__SECRET_HASH: self.__get_secret_hash(username=username),
-                },
-            )
+            response = self.__initiate_auth(auth_parameters=auth_parameters, auth_flow=AuthFlow.REFRESH_TOKEN_AUTH)
             return response[self.__AUTHENTICATION_RESULT][self.__ACCESS_TOKEN]
 
         except ClientError as e:
@@ -130,16 +159,13 @@ class CognitoPy:
     def login(self, username: str, password: str) -> dict:
         if not isinstance(username, str) or not isinstance(password, str):
             raise ValueError("The username and password should be strings.")
+        auth_parameters = {
+            self.__USERNAME: username,
+            self.__PASSWORD: password,
+            self.__SECRET_HASH: self.__get_secret_hash(username=username),
+        }
         try:
-            response = self.__client.initiate_auth(
-                AuthFlow=self.__USER_PASSWORD_AUTH,
-                ClientId=self.__client_id,
-                AuthParameters={
-                    self.__USERNAME: username,
-                    self.__PASSWORD: password,
-                    self.__SECRET_HASH: self.__get_secret_hash(username=username),
-                },
-            )
+            response = self.__initiate_auth(auth_flow=AuthFlow.USER_PASSWORD_AUTH, auth_parameters=auth_parameters)
             if "ChallengeName" in response:
                 raise ExceptionAuthCognito(
                     f"The user must complete challenge auth use function "
@@ -301,7 +327,7 @@ class CognitoPy:
             raise ExceptionJWTCognito("Error decoding token claims.")
         return {self.__USERNAME.lower(): data["sub"], self.__GROUPS: data.get(self.__GROUP_KEY, [])}
 
-    def admin_confirm_sign_up(self, username: str) -> None:
+    def admin_confirm_register(self, username: str) -> None:
         if not isinstance(username, str):
             raise ValueError("The username should be a string.")
         try:
@@ -320,7 +346,7 @@ class CognitoPy:
     ) -> None:
         if not isinstance(username, str) or not isinstance(user_attributes, dict) or not isinstance(force_alias, bool):
             raise ValueError(
-                "The username should be a string, user_attributes should be a dict and force_alias" " should be a bool."
+                "The username should be a string, user_attributes should be a dict and force_alias should be a bool."
             )
         if password and not isinstance(password, str):
             raise ValueError("The password should be a string.")
@@ -370,10 +396,45 @@ class CognitoPy:
             response = self.__client.admin_get_user(UserPoolId=self.__userpool_id, Username=username)
         except ClientError as e:
             raise ExceptionAuthCognito(e.response[self.__ERROR][self.__MESSAGE])
-        return response
+        return self.__user_to_dict(user=response)
 
-    def admin_initiate_auth(self):
-        pass
+    def admin_login(self, username: str, password: str) -> dict:
+        auth_parameters = {
+            self.__SECRET_HASH: self.__get_secret_hash(username=username),
+            self.__USERNAME: username,
+            self.__PASSWORD: password,
+        }
+
+        response = self.__initiate_auth(
+            auth_flow=AdminAuthFlow.ADMIN_USER_PASSWORD_AUTH, auth_parameters=auth_parameters, admin=True
+        )
+        if "ChallengeName" in response:
+            raise ExceptionAuthCognito(
+                f"The user must complete challenge auth use function "
+                f"admin_respond_to_auth_challenge with challenge_name="
+                f"{response['ChallengeName']}, the session is {response['Session']}."
+            )
+        return {
+            self.__ACCESS_TOKEN_KEY: response[self.__AUTHENTICATION_RESULT][self.__ACCESS_TOKEN],
+            self.__REFRESH_TOKEN_KEY: response[self.__AUTHENTICATION_RESULT][self.__REFRESH_TOKEN],
+        }
+
+    def admin_renew_access_token(self, access_token: str, refresh_token: str) -> str:
+        if not isinstance(access_token, str) or not isinstance(refresh_token, str):
+            raise ValueError("The access_token and refresh_token should be strings.")
+        username = self.get_info_user_by_token(access_token=access_token)[self.__USERNAME.lower()]
+        auth_parameters = {
+            self.__REFRESH_TOKEN_KEY.upper(): refresh_token,
+            self.__SECRET_HASH: self.__get_secret_hash(username=username),
+        }
+
+        try:
+            response = self.__initiate_auth(
+                auth_flow=AdminAuthFlow.REFRESH_TOKEN_AUTH, auth_parameters=auth_parameters, admin=True
+            )
+            return response[self.__AUTHENTICATION_RESULT][self.__ACCESS_TOKEN]
+        except ClientError as e:
+            raise ExceptionAuthCognito(e.response[self.__ERROR][self.__MESSAGE])
 
     def admin_list_groups_for_user(self):
         pass
