@@ -42,6 +42,12 @@ class CognitoPy:
         self.__client_id = client_id
         self.__client_secret = client_secret
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close_connection()
+
     @property
     def userpool_id(self):
         return self.__userpool_id
@@ -98,6 +104,9 @@ class CognitoPy:
         else:
             expired = False
         return expired
+
+    def close_connection(self) -> None:
+        self.__client.close()
 
     def renew_access_token(self, access_token: str, refresh_token: str) -> dict:
         if not isinstance(access_token, str) or not isinstance(refresh_token, str):
