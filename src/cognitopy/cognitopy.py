@@ -11,6 +11,7 @@ from .exceptions import (
     ExceptionConnectionCognito,
     ExceptionTokenExpired,
 )
+from .enums import MessageAction, DesiredDelivery
 
 
 class CognitoPy:
@@ -139,6 +140,12 @@ class CognitoPy:
                     self.__SECRET_HASH: self.__get_secret_hash(username=username),
                 },
             )
+            if "ChallengeName" in response:
+                raise ExceptionAuthCognito(
+                    f"The user must complete challenge auth use function "
+                    f"admin_respond_to_auth_challenge with challenge_name="
+                    f"{response['ChallengeName']}, the session is {response['Session']}."
+                )
             return {
                 self.__ACCESS_TOKEN_KEY: response[self.__AUTHENTICATION_RESULT][self.__ACCESS_TOKEN],
                 self.__REFRESH_TOKEN_KEY: response[self.__AUTHENTICATION_RESULT][self.__REFRESH_TOKEN],
@@ -293,3 +300,86 @@ class CognitoPy:
         except JWTError:
             raise ExceptionJWTCognito("Error decoding token claims.")
         return {self.__USERNAME.lower(): data["sub"], self.__GROUPS: data.get(self.__GROUP_KEY, [])}
+
+    def admin_confirm_sign_up(self, username: str) -> None:
+        if not isinstance(username, str):
+            raise ValueError("The username should be a string.")
+        try:
+            self.__client.admin_confirm_sign_up(UserPoolId=self.__userpool_id, Username=username)
+        except ClientError as e:
+            raise ExceptionAuthCognito(e.response[self.__ERROR][self.__MESSAGE])
+
+    def admin_create_user(
+        self,
+        username: str,
+        user_attributes: dict,
+        force_alias: bool,
+        message_action: MessageAction,
+        desired_delivery: list[DesiredDelivery],
+        password: str = None,
+    ) -> None:
+        if not isinstance(username, str) or not isinstance(user_attributes, dict) or not isinstance(force_alias, bool):
+            raise ValueError(
+                "The username should be a string, user_attributes should be a dict and force_alias" " should be a bool."
+            )
+        if password and not isinstance(password, str):
+            raise ValueError("The password should be a string.")
+        if not isinstance(message_action, MessageAction):
+            raise ValueError("The message_action should be a MessageAction.")
+        if not isinstance(desired_delivery, list) and not all(
+            isinstance(item, DesiredDelivery) for item in desired_delivery
+        ):
+            raise ValueError("The desired_delivery should be a List[DesiredDeliver].")
+        cognito_attributes = self.__dict_to_cognito(user_attributes)
+        arg_password = {}
+        if password:
+            arg_password = {"TemporaryPassword": password}
+        try:
+            self.__client.admin_create_user(
+                UserPoolId=self.__userpool_id,
+                Username=username,
+                UserAttributes=cognito_attributes,
+                ForceAliasCreation=force_alias,
+                MessageAction=message_action.value,
+                DesiredDeliveryMediums=[item.value for item in desired_delivery],
+                **arg_password,
+            )
+        except ClientError as e:
+            raise ExceptionAuthCognito(e.response[self.__ERROR][self.__MESSAGE])
+
+    def admin_disable_user(self, username: str) -> None:
+        if not isinstance(username, str):
+            raise ValueError("The username should be a string.")
+        try:
+            self.__client.admin_disable_user(UserPoolId=self.__userpool_id, Username=username)
+        except ClientError as e:
+            raise ExceptionAuthCognito(e.response[self.__ERROR][self.__MESSAGE])
+
+    def admin_enable_user(self, username: str) -> None:
+        if not isinstance(username, str):
+            raise ValueError("The username should be a string.")
+        try:
+            self.__client.admin_enable_user(UserPoolId=self.__userpool_id, Username=username)
+        except ClientError as e:
+            raise ExceptionAuthCognito(e.response[self.__ERROR][self.__MESSAGE])
+
+    def admin_get_user(self, username: str) -> dict:
+        if not isinstance(username, str):
+            raise ValueError("The username should be a string.")
+        try:
+            response = self.__client.admin_get_user(UserPoolId=self.__userpool_id, Username=username)
+        except ClientError as e:
+            raise ExceptionAuthCognito(e.response[self.__ERROR][self.__MESSAGE])
+        return response
+
+    def admin_initiate_auth(self):
+        pass
+
+    def admin_list_groups_for_user(self):
+        pass
+
+    def admin_reset_user_password(self):
+        pass
+
+    def admin_respond_to_auth_challenge(self):
+        pass
