@@ -10,6 +10,8 @@ from cognitopy.exceptions import (
     ExceptionTokenExpired,
 )
 from botocore.exceptions import ClientError, EndpointConnectionError
+from cognitopy.enums import MessageAction, DesiredDelivery
+from datetime import datetime
 
 
 class TestCognito(TestCase):
@@ -101,7 +103,10 @@ class TestCognito(TestCase):
         expected_calls_get_info = [call(access_token="access_token_test")]
         expected_response = "test1232"
 
-        response = self.cognito.renew_access_token(access_token="access_token_test", refresh_token="refresh_token_test")
+        cognito = CognitoPy(
+            userpool_id="eu-12_test", client_id="dtest34453", client_secret="dtest34334444", secret_hash=True
+        )
+        response = cognito.renew_access_token(access_token="access_token_test", refresh_token="refresh_token_test")
 
         self.assertEqual(mock_initiate_auth.call_args_list, expected_calls_auth)
         self.assertEqual(mock_get_info.call_args_list, expected_calls_get_info)
@@ -119,10 +124,7 @@ class TestCognito(TestCase):
             call(
                 ClientId="dtest34453",
                 AuthFlow="REFRESH_TOKEN_AUTH",
-                AuthParameters={
-                    "REFRESH_TOKEN": "refresh_token_test",
-                    "SECRET_HASH": "0ht/aQ+Y1wA2FL6XYkn3UoUfZu67Ik+/On25xDAlwpo=",
-                },
+                AuthParameters={"REFRESH_TOKEN": "refresh_token_test"},
             )
         ]
         expected_calls_get_info = [call(access_token="access_token_test")]
@@ -165,10 +167,36 @@ class TestCognito(TestCase):
         ]
         expected_response = {"access_token": "test1232", "refresh_token": "test2332"}
 
-        response = self.cognito.login(username="username_test", password="password_test")
+        cognito = CognitoPy(
+            userpool_id="eu-12_test", client_id="dtest34453", client_secret="dtest34334444", secret_hash=True
+        )
+        response = cognito.login(username="username_test", password="password_test")
 
         self.assertEqual(mock_initiate_auth.call_args_list, expected_calls)
         self.assertEqual(response, expected_response)
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_login_error_challenge(self, mock_client: Mock):
+        mock_login = mock_client.return_value.initiate_auth
+        mock_login.side_effect = [{"ChallengeName": "NEW_PASSWORD_REQUIRED", "Session": "test_session"}]
+        expected_calls = [
+            call(
+                ClientId="dtest34453",
+                AuthFlow="USER_PASSWORD_AUTH",
+                AuthParameters={"USERNAME": "test1", "PASSWORD": "test1"},
+            )
+        ]
+
+        with self.assertRaises(ExceptionAuthCognito) as exc:
+            self.cognito.login(username="test1", password="test1")
+
+        self.assertEqual(mock_login.call_args_list, expected_calls)
+        self.assertEqual(
+            str(exc.exception),
+            "The user must complete challenge auth use function "
+            "admin_respond_to_auth_challenge with challenge_name="
+            "NEW_PASSWORD_REQUIRED, the session is test_session.",
+        )
 
     @patch("cognitopy.cognitopy.boto3.client")
     def test_login_error_client(self, mock_client: Mock):
@@ -191,11 +219,7 @@ class TestCognito(TestCase):
             call(
                 ClientId="dtest34453",
                 AuthFlow="USER_PASSWORD_AUTH",
-                AuthParameters={
-                    "USERNAME": "username_test",
-                    "PASSWORD": "password_test",
-                    "SECRET_HASH": "sD6vefe+JNM/kycHW3x6NhCdVMF2QbcJ2ztDjwr47DY=",
-                },
+                AuthParameters={"USERNAME": "username_test", "PASSWORD": "password_test"},
             )
         ]
 
@@ -228,9 +252,10 @@ class TestCognito(TestCase):
             )
         ]
 
-        self.cognito.register(
-            username="username_test", password="password_test", user_attributes={"email": "email_test"}
+        cognito = CognitoPy(
+            userpool_id="eu-12_test", client_id="dtest34453", client_secret="dtest34334444", secret_hash=True
         )
+        cognito.register(username="username_test", password="password_test", user_attributes={"email": "email_test"})
 
         self.assertEqual(mock_sign_up.call_args_list, expected_calls)
 
@@ -247,7 +272,6 @@ class TestCognito(TestCase):
                 Username="username_test",
                 Password="password_test",
                 UserAttributes=[{"Name": "email", "Value": "email_test"}],
-                SecretHash="sD6vefe+JNM/kycHW3x6NhCdVMF2QbcJ2ztDjwr47DY=",
             )
         ]
 
@@ -274,7 +298,7 @@ class TestCognito(TestCase):
         )
 
     @patch("cognitopy.cognitopy.boto3.client")
-    def test_confirm_sing_up(self, mock_client: Mock):
+    def test_confirm_register(self, mock_client: Mock):
         mock_sign_up = mock_client.return_value.confirm_sign_up
         expected_calls = [
             call(
@@ -285,38 +309,34 @@ class TestCognito(TestCase):
             )
         ]
 
-        self.cognito.confirm_sing_up(username="username_test", confirmation_code="123434")
+        cognito = CognitoPy(
+            userpool_id="eu-12_test", client_id="dtest34453", client_secret="dtest34334444", secret_hash=True
+        )
+        cognito.confirm_register(username="username_test", confirmation_code="123434")
 
         self.assertEqual(mock_sign_up.call_args_list, expected_calls)
 
     @patch("cognitopy.cognitopy.boto3.client")
-    def test_confirm_sing_up_error(self, mock_client: Mock):
+    def test_confirm_register_error(self, mock_client: Mock):
         mock_sign_up = mock_client.return_value.confirm_sign_up
         mock_sign_up.side_effect = ClientError(
             error_response={"Error": {"Message": "Username not exist."}},
             operation_name="test",
         )
-        expected_calls = [
-            call(
-                ClientId="dtest34453",
-                Username="username_test",
-                ConfirmationCode="123434",
-                SecretHash="sD6vefe+JNM/kycHW3x6NhCdVMF2QbcJ2ztDjwr47DY=",
-            )
-        ]
+        expected_calls = [call(ClientId="dtest34453", Username="username_test", ConfirmationCode="123434")]
 
         with self.assertRaises(ExceptionAuthCognito) as exc:
-            self.cognito.confirm_sing_up(username="username_test", confirmation_code="123434")
+            self.cognito.confirm_register(username="username_test", confirmation_code="123434")
 
         self.assertEqual(mock_sign_up.call_args_list, expected_calls)
         self.assertEqual(str(exc.exception), "Username not exist.")
 
     @patch("cognitopy.cognitopy.boto3.client")
-    def test_confirm_sing_up_error_type(self, mock_client: Mock):
+    def test_confirm_register_error_type(self, mock_client: Mock):
         mock_sign_up = mock_client.return_value.confirm_sign_up
 
         with self.assertRaises(ValueError) as exc:
-            self.cognito.confirm_sing_up(username=34, confirmation_code="123434")
+            self.cognito.confirm_register(username=34, confirmation_code="123434")
 
         self.assertEqual(mock_sign_up.call_count, 0)
         self.assertEqual(str(exc.exception), "The username and confirmation_code should be strings.")
@@ -365,7 +385,10 @@ class TestCognito(TestCase):
             )
         ]
 
-        self.cognito.initiate_forgot_password(username="username_test")
+        cognito = CognitoPy(
+            userpool_id="eu-12_test", client_id="dtest34453", client_secret="dtest34334444", secret_hash=True
+        )
+        cognito.initiate_forgot_password(username="username_test")
 
         self.assertEqual(mock_forgot_password.call_args_list, expected_calls)
 
@@ -375,13 +398,7 @@ class TestCognito(TestCase):
         mock_forgot_password.side_effect = ClientError(
             error_response={"Error": {"Message": "Username incorrect."}}, operation_name="test"
         )
-        expected_calls = [
-            call(
-                ClientId="dtest34453",
-                Username="username_test",
-                SecretHash="sD6vefe+JNM/kycHW3x6NhCdVMF2QbcJ2ztDjwr47DY=",
-            )
-        ]
+        expected_calls = [call(ClientId="dtest34453", Username="username_test")]
 
         with self.assertRaises(ExceptionAuthCognito) as exc:
             self.cognito.initiate_forgot_password(username="username_test")
@@ -469,9 +486,10 @@ class TestCognito(TestCase):
             )
         ]
 
-        self.cognito.confirm_forgot_password(
-            username="username_test", confirmation_code="12342", password="password_test"
+        cognito = CognitoPy(
+            userpool_id="eu-12_test", client_id="dtest34453", client_secret="dtest34334444", secret_hash=True
         )
+        cognito.confirm_forgot_password(username="username_test", confirmation_code="12342", password="password_test")
 
         self.assertEqual(mock_confirm_forgot_password.call_args_list, expected_calls)
 
@@ -482,13 +500,7 @@ class TestCognito(TestCase):
             error_response={"Error": {"Message": "Username incorrect."}}, operation_name="test"
         )
         expected_calls = [
-            call(
-                ClientId="dtest34453",
-                Username="username_test",
-                ConfirmationCode="12342",
-                Password="password_test",
-                SecretHash="sD6vefe+JNM/kycHW3x6NhCdVMF2QbcJ2ztDjwr47DY=",
-            )
+            call(ClientId="dtest34453", Username="username_test", ConfirmationCode="12342", Password="password_test")
         ]
 
         with self.assertRaises(ExceptionAuthCognito) as exc:
@@ -791,3 +803,704 @@ class TestCognito(TestCase):
 
         self.assertEqual(mock_jwt.call_count, 0)
         self.assertEqual(str(exc.exception), "The access_token should be a string.")
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    @patch("cognitopy.cognitopy.CognitoPy.admin_delete_user")
+    def test_context_manager(self, mock_create_user: Mock, mock_client: Mock):
+        mock_close = mock_client.return_value.close
+
+        with CognitoPy(userpool_id="eu-12_test", client_id="dtest34453", client_secret="dtest34334444") as cognito:
+            cognito.admin_delete_user(username="test1")
+
+        self.assertEqual(mock_create_user.call_args_list, [call(username="test1")])
+        self.assertEqual(mock_close.call_count, 1)
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_confirm_register(self, mock_client: Mock):
+        mock_admin_confirm_sign_up = mock_client.return_value.admin_confirm_sign_up
+        expected_calls = [call(UserPoolId="eu-12_test", Username="test1")]
+
+        self.cognito.admin_confirm_register(username="test1")
+
+        self.assertEqual(mock_admin_confirm_sign_up.call_args_list, expected_calls)
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_confirm_register_error(self, mock_client: Mock):
+        mock_admin_confirm_sign_up = mock_client.return_value.admin_confirm_sign_up
+        mock_admin_confirm_sign_up.side_effect = ClientError(
+            error_response={"Error": {"Message": "Username is incorrect."}}, operation_name="test"
+        )
+        expected_calls = [call(UserPoolId="eu-12_test", Username="test1")]
+
+        with self.assertRaises(ExceptionAuthCognito) as exc:
+            self.cognito.admin_confirm_register(username="test1")
+
+        self.assertEqual(mock_admin_confirm_sign_up.call_args_list, expected_calls)
+        self.assertEqual(str(exc.exception), "Username is incorrect.")
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_confirm_register_error_type(self, mock_client: Mock):
+        mock_admin_confirm_sign_up = mock_client.return_value.admin_confirm_sign_up
+
+        with self.assertRaises(ValueError) as exc:
+            self.cognito.admin_confirm_register(username=3223)
+
+        self.assertEqual(mock_admin_confirm_sign_up.call_count, 0)
+        self.assertEqual(str(exc.exception), "The username should be a string.")
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_create_user(self, mock_client: Mock):
+        mock_admin_create_user = mock_client.return_value.admin_create_user
+        expected_calls = [
+            call(
+                UserPoolId="eu-12_test",
+                Username="test1",
+                UserAttributes=[{"Name": "email", "Value": "test1@mail.com"}],
+                ForceAliasCreation=True,
+                MessageAction="RESEND",
+                DesiredDeliveryMediums=["EMAIL"],
+            )
+        ]
+
+        self.cognito.admin_create_user(
+            username="test1",
+            user_attributes={"email": "test1@mail.com"},
+            force_alias=True,
+            message_action=MessageAction.RESEND,
+            desired_delivery=[DesiredDelivery.EMAIL],
+        )
+
+        self.assertEqual(mock_admin_create_user.call_args_list, expected_calls)
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_create_user_temporary_password(self, mock_client: Mock):
+        mock_admin_create_user = mock_client.return_value.admin_create_user
+        expected_calls = [
+            call(
+                UserPoolId="eu-12_test",
+                Username="test1",
+                UserAttributes=[],
+                ForceAliasCreation=True,
+                MessageAction="RESEND",
+                DesiredDeliveryMediums=["EMAIL"],
+                TemporaryPassword="test1",
+            )
+        ]
+
+        self.cognito.admin_create_user(
+            username="test1",
+            user_attributes={},
+            force_alias=True,
+            message_action=MessageAction.RESEND,
+            desired_delivery=[DesiredDelivery.EMAIL],
+            temporary_password="test1",
+        )
+
+        self.assertEqual(mock_admin_create_user.call_args_list, expected_calls)
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_create_user_error(self, mock_client: Mock):
+        mock_admin_create_user = mock_client.return_value.admin_create_user
+        mock_admin_create_user.side_effect = ClientError(
+            error_response={"Error": {"Message": "PasswordTemporary is incorrect."}}, operation_name="test"
+        )
+        expected_calls = [
+            call(
+                UserPoolId="eu-12_test",
+                Username="test1",
+                UserAttributes=[],
+                ForceAliasCreation=True,
+                MessageAction="RESEND",
+                DesiredDeliveryMediums=["EMAIL"],
+                TemporaryPassword="test1",
+            )
+        ]
+
+        with self.assertRaises(ExceptionAuthCognito) as exc:
+            self.cognito.admin_create_user(
+                username="test1",
+                user_attributes={},
+                force_alias=True,
+                message_action=MessageAction.RESEND,
+                desired_delivery=[DesiredDelivery.EMAIL],
+                temporary_password="test1",
+            )
+
+        self.assertEqual(mock_admin_create_user.call_args_list, expected_calls)
+        self.assertEqual(str(exc.exception), "PasswordTemporary is incorrect.")
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_create_user_error_type_message_action(self, mock_client: Mock):
+        mock_admin_create_user = mock_client.return_value.admin_create_user
+
+        with self.assertRaises(ValueError) as exc:
+            self.cognito.admin_create_user(
+                username="test1",
+                user_attributes={"email": "test1@mail.com"},
+                force_alias=True,
+                message_action="RESEND",
+                desired_delivery=[DesiredDelivery.EMAIL],
+            )
+
+        self.assertEqual(mock_admin_create_user.call_count, 0)
+        self.assertEqual(str(exc.exception), "The message_action should be a MessageAction.")
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_create_user_error_type_username(self, mock_client: Mock):
+        mock_admin_create_user = mock_client.return_value.admin_create_user
+
+        with self.assertRaises(ValueError) as exc:
+            self.cognito.admin_create_user(
+                username=232,
+                user_attributes={"email": "test1@mail.com"},
+                force_alias=True,
+                message_action=MessageAction.RESEND,
+                desired_delivery=[DesiredDelivery.EMAIL],
+            )
+
+        self.assertEqual(mock_admin_create_user.call_count, 0)
+        self.assertEqual(
+            str(exc.exception),
+            "The username should be a string, user_attributes should be a dict and " "force_alias should be a bool.",
+        )
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_create_user_error_type_temporary_password(self, mock_client: Mock):
+        mock_admin_create_user = mock_client.return_value.admin_create_user
+
+        with self.assertRaises(ValueError) as exc:
+            self.cognito.admin_create_user(
+                username="test1",
+                user_attributes={"email": "test1@mail.com"},
+                force_alias=True,
+                message_action=MessageAction.RESEND,
+                desired_delivery=[DesiredDelivery.EMAIL],
+                temporary_password=232,
+            )
+
+        self.assertEqual(mock_admin_create_user.call_count, 0)
+        self.assertEqual(str(exc.exception), "The temporary_password should be a string.")
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_create_user_error_type_desired_delivery(self, mock_client: Mock):
+        mock_admin_create_user = mock_client.return_value.admin_create_user
+
+        with self.assertRaises(ValueError) as exc:
+            self.cognito.admin_create_user(
+                username="test1",
+                user_attributes={"email": "test1@mail.com"},
+                force_alias=True,
+                message_action=MessageAction.RESEND,
+                desired_delivery=[DesiredDelivery.EMAIL, "SMS"],
+            )
+
+        self.assertEqual(mock_admin_create_user.call_count, 0)
+        self.assertEqual(str(exc.exception), "The desired_delivery should be a List[DesiredDeliver].")
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_disable_user(self, mock_client: Mock):
+        mock_admin_disable_user = mock_client.return_value.admin_disable_user
+        expected_calls = [call(UserPoolId="eu-12_test", Username="test1")]
+
+        self.cognito.admin_disable_user(username="test1")
+
+        self.assertEqual(mock_admin_disable_user.call_args_list, expected_calls)
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_disable_user_error(self, mock_client: Mock):
+        mock_admin_disable_user = mock_client.return_value.admin_disable_user
+        mock_admin_disable_user.side_effect = ClientError(
+            error_response={"Error": {"Message": "Username is incorrect."}}, operation_name="test"
+        )
+        expected_calls = [call(UserPoolId="eu-12_test", Username="test1")]
+
+        with self.assertRaises(ExceptionAuthCognito) as exc:
+            self.cognito.admin_disable_user(username="test1")
+
+        self.assertEqual(mock_admin_disable_user.call_args_list, expected_calls)
+        self.assertEqual(str(exc.exception), "Username is incorrect.")
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_disable_user_error_type(self, mock_client: Mock):
+        mock_admin_disable_user = mock_client.return_value.admin_disable_user
+
+        with self.assertRaises(ValueError) as exc:
+            self.cognito.admin_disable_user(username=23)
+
+        self.assertEqual(mock_admin_disable_user.call_count, 0)
+        self.assertEqual(str(exc.exception), "The username should be a string.")
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_enable_user(self, mock_client: Mock):
+        mock_admin_enable_user = mock_client.return_value.admin_enable_user
+        expected_calls = [call(UserPoolId="eu-12_test", Username="test1")]
+
+        self.cognito.admin_enable_user(username="test1")
+
+        self.assertEqual(mock_admin_enable_user.call_args_list, expected_calls)
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_enable_user_error(self, mock_client: Mock):
+        mock_admin_enable_user = mock_client.return_value.admin_enable_user
+        mock_admin_enable_user.side_effect = ClientError(
+            error_response={"Error": {"Message": "Username is incorrect."}}, operation_name="test"
+        )
+        expected_calls = [call(UserPoolId="eu-12_test", Username="test1")]
+
+        with self.assertRaises(ExceptionAuthCognito) as exc:
+            self.cognito.admin_enable_user(username="test1")
+
+        self.assertEqual(mock_admin_enable_user.call_args_list, expected_calls)
+        self.assertEqual(str(exc.exception), "Username is incorrect.")
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_enable_user_error_type(self, mock_client: Mock):
+        mock_admin_enable_user = mock_client.return_value.admin_enable_user
+
+        with self.assertRaises(ValueError) as exc:
+            self.cognito.admin_enable_user(username=23)
+
+        self.assertEqual(mock_admin_enable_user.call_count, 0)
+        self.assertEqual(str(exc.exception), "The username should be a string.")
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_get_user(self, mock_client: Mock):
+        mock_admin_get_user = mock_client.return_value.admin_get_user
+        mock_admin_get_user.return_value = {
+            "Username": "test1",
+            "UserAttributes": [{"Name": "email", "Value": "test@mail.com"}],
+            "Enabled": True,
+            "UserStatus": "CONFIRMED",
+            "UserCreateDate": datetime(2022, 12, 23),
+            "UserLastModifiedDate": datetime(2022, 12, 23),
+        }
+        expected_calls = [call(UserPoolId="eu-12_test", Username="test1")]
+        expected_response = {
+            "username": "test1",
+            "email": "test@mail.com",
+            "enabled": True,
+            "user_status": "CONFIRMED",
+            "user_create_date": datetime(2022, 12, 23),
+            "user_last_modified_date": datetime(2022, 12, 23),
+        }
+
+        response = self.cognito.admin_get_user(username="test1")
+
+        self.assertEqual(mock_admin_get_user.call_args_list, expected_calls)
+        self.assertEqual(response, expected_response)
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_get_user_error(self, mock_client: Mock):
+        mock_admin_get_user = mock_client.return_value.admin_get_user
+        mock_admin_get_user.side_effect = ClientError(
+            error_response={"Error": {"Message": "Username is incorrect."}}, operation_name="test"
+        )
+        expected_calls = [call(UserPoolId="eu-12_test", Username="test1")]
+
+        with self.assertRaises(ExceptionAuthCognito) as exc:
+            self.cognito.admin_get_user(username="test1")
+
+        self.assertEqual(mock_admin_get_user.call_args_list, expected_calls)
+        self.assertEqual(str(exc.exception), "Username is incorrect.")
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_get_user_error_type(self, mock_client: Mock):
+        mock_admin_get_user = mock_client.return_value.admin_get_user
+
+        with self.assertRaises(ValueError) as exc:
+            self.cognito.admin_get_user(username=23)
+
+        self.assertEqual(mock_admin_get_user.call_count, 0)
+        self.assertEqual(str(exc.exception), "The username should be a string.")
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_login(self, mock_client: Mock):
+        mock_admin_login = mock_client.return_value.admin_initiate_auth
+        mock_admin_login.return_value = {
+            "AuthenticationResult": {"AccessToken": "test1232", "RefreshToken": "test2332"}
+        }
+        expected_calls = [
+            call(
+                ClientId="dtest34453",
+                AuthFlow="ADMIN_USER_PASSWORD_AUTH",
+                UserPoolId="eu-12_test",
+                AuthParameters={
+                    "USERNAME": "test1",
+                    "PASSWORD": "test1",
+                    "SECRET_HASH": "0ht/aQ+Y1wA2FL6XYkn3UoUfZu67Ik+/On25xDAlwpo=",
+                },
+            )
+        ]
+        expected_response = {"access_token": "test1232", "refresh_token": "test2332"}
+
+        cognito = CognitoPy(
+            userpool_id="eu-12_test", client_id="dtest34453", client_secret="dtest34334444", secret_hash=True
+        )
+        response = cognito.admin_login(username="test1", password="test1")
+
+        self.assertEqual(mock_admin_login.call_args_list, expected_calls)
+        self.assertEqual(response, expected_response)
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_login_error(self, mock_client: Mock):
+        mock_admin_login = mock_client.return_value.admin_initiate_auth
+        mock_admin_login.side_effect = ClientError(
+            error_response={"Error": {"Message": "Username is incorrect."}}, operation_name="test"
+        )
+        expected_calls = [
+            call(
+                ClientId="dtest34453",
+                AuthFlow="ADMIN_USER_PASSWORD_AUTH",
+                UserPoolId="eu-12_test",
+                AuthParameters={"USERNAME": "test1", "PASSWORD": "test1"},
+            )
+        ]
+
+        with self.assertRaises(ExceptionAuthCognito) as exc:
+            self.cognito.admin_login(username="test1", password="test1")
+
+        self.assertEqual(mock_admin_login.call_args_list, expected_calls)
+        self.assertEqual(str(exc.exception), "Username is incorrect.")
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_login_error_challenge(self, mock_client: Mock):
+        mock_admin_login = mock_client.return_value.admin_initiate_auth
+        mock_admin_login.side_effect = [{"ChallengeName": "NEW_PASSWORD_REQUIRED", "Session": "test_session"}]
+        expected_calls = [
+            call(
+                ClientId="dtest34453",
+                AuthFlow="ADMIN_USER_PASSWORD_AUTH",
+                UserPoolId="eu-12_test",
+                AuthParameters={"USERNAME": "test1", "PASSWORD": "test1"},
+            )
+        ]
+
+        with self.assertRaises(ExceptionAuthCognito) as exc:
+            self.cognito.admin_login(username="test1", password="test1")
+
+        self.assertEqual(mock_admin_login.call_args_list, expected_calls)
+        self.assertEqual(
+            str(exc.exception),
+            "The user must complete challenge auth use function "
+            "admin_respond_to_auth_challenge with challenge_name="
+            "NEW_PASSWORD_REQUIRED, the session is test_session.",
+        )
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_login_error_type(self, mock_client: Mock):
+        mock_admin_login = mock_client.return_value.admin_initiate_auth
+
+        with self.assertRaises(ValueError) as exc:
+            self.cognito.admin_login(username=34, password="test1")
+
+        self.assertEqual(mock_admin_login.call_count, 0)
+        self.assertEqual(str(exc.exception), "The username and password should be strings.")
+
+    @patch("cognitopy.cognitopy.CognitoPy.get_info_user_by_token")
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_renew_access_token(self, mock_client: Mock, mock_get_info: Mock):
+        mock_admin_renew_access_token = mock_client.return_value.admin_initiate_auth
+        mock_get_info.return_value = {"username": "test1", "groups": []}
+        expected_calls = [
+            call(
+                ClientId="dtest34453",
+                AuthFlow="REFRESH_TOKEN_AUTH",
+                UserPoolId="eu-12_test",
+                AuthParameters={
+                    "REFRESH_TOKEN": "test2",
+                    "SECRET_HASH": "0ht/aQ+Y1wA2FL6XYkn3UoUfZu67Ik+/On25xDAlwpo=",
+                },
+            )
+        ]
+        expected_calls_get_info = [call(access_token="test1")]
+
+        cognito = CognitoPy(
+            userpool_id="eu-12_test", client_id="dtest34453", client_secret="dtest34334444", secret_hash=True
+        )
+        cognito.admin_renew_access_token(access_token="test1", refresh_token="test2")
+
+        self.assertEqual(mock_admin_renew_access_token.call_args_list, expected_calls)
+        self.assertEqual(mock_get_info.call_args_list, expected_calls_get_info)
+
+    @patch("cognitopy.cognitopy.CognitoPy.get_info_user_by_token")
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_renew_access_token_error_secret(self, mock_client: Mock, mock_get_info: Mock):
+        mock_admin_renew_access_token = mock_client.return_value.admin_initiate_auth
+        mock_get_info.return_value = {"username": 23, "groups": []}
+        expected_calls_get_info = [call(access_token="test1")]
+
+        cognito = CognitoPy(
+            userpool_id="eu-12_test", client_id="dtest34453", client_secret="dtest34334444", secret_hash=True
+        )
+        with self.assertRaises(ValueError) as exc:
+            cognito.admin_renew_access_token(access_token="test1", refresh_token="test2")
+
+        self.assertEqual(mock_admin_renew_access_token.call_count, 0)
+        self.assertEqual(mock_get_info.call_args_list, expected_calls_get_info)
+        self.assertEqual(str(exc.exception), "The username should be a string.")
+
+    @patch("cognitopy.cognitopy.CognitoPy.get_info_user_by_token")
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_renew_access_token_error(self, mock_client: Mock, mock_get_info: Mock):
+        mock_admin_renew_access_token = mock_client.return_value.admin_initiate_auth
+        mock_admin_renew_access_token.side_effect = ClientError(
+            error_response={"Error": {"Message": "Error connect"}}, operation_name="test"
+        )
+        mock_get_info.return_value = {"username": "test1", "groups": []}
+        expected_calls = [
+            call(
+                ClientId="dtest34453",
+                AuthFlow="REFRESH_TOKEN_AUTH",
+                UserPoolId="eu-12_test",
+                AuthParameters={"REFRESH_TOKEN": "test2"},
+            )
+        ]
+        expected_calls_get_info = [call(access_token="test1")]
+
+        with self.assertRaises(ExceptionAuthCognito) as exc:
+            self.cognito.admin_renew_access_token(access_token="test1", refresh_token="test2")
+
+        self.assertEqual(mock_admin_renew_access_token.call_args_list, expected_calls)
+        self.assertEqual(str(exc.exception), "Error connect")
+        self.assertEqual(mock_get_info.call_args_list, expected_calls_get_info)
+
+    @patch("cognitopy.cognitopy.CognitoPy.get_info_user_by_token")
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_renew_access_token_error_type(self, mock_client: Mock, mock_get_info: Mock):
+        mock_admin_renew_access_token = mock_client.return_value.admin_initiate_auth
+
+        with self.assertRaises(ValueError) as exc:
+            self.cognito.admin_renew_access_token(access_token=23, refresh_token="test2")
+
+        self.assertEqual(mock_admin_renew_access_token.call_count, 0)
+        self.assertEqual(str(exc.exception), "The access_token and refresh_token should be strings.")
+        self.assertEqual(mock_get_info.call_count, 0)
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_list_groups_for_user(self, mock_client: Mock):
+        mock_admin_list_groups_for_user = mock_client.return_value.admin_list_groups_for_user
+        expected_calls = [call(Username="test1", UserPoolId="eu-12_test")]
+
+        self.cognito.admin_list_groups_for_user(username="test1")
+
+        self.assertEqual(mock_admin_list_groups_for_user.call_args_list, expected_calls)
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_list_groups_for_user_with_params(self, mock_client: Mock):
+        mock_admin_list_groups_for_user = mock_client.return_value.admin_list_groups_for_user
+        expected_calls = [call(Username="test1", UserPoolId="eu-12_test", Limit=10, NextToken="test2")]
+
+        self.cognito.admin_list_groups_for_user(username="test1", limit=10, next_token="test2")
+
+        self.assertEqual(mock_admin_list_groups_for_user.call_args_list, expected_calls)
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_list_groups_for_user_token_error(self, mock_client: Mock):
+        mock_admin_list_groups_for_user = mock_client.return_value.admin_list_groups_for_user
+        mock_admin_list_groups_for_user.side_effect = ClientError(
+            error_response={"Error": {"Message": "Error username"}}, operation_name="test"
+        )
+        expected_calls = [call(Username="test1", UserPoolId="eu-12_test")]
+
+        with self.assertRaises(ExceptionAuthCognito) as exc:
+            self.cognito.admin_list_groups_for_user(username="test1")
+
+        self.assertEqual(str(exc.exception), "Error username")
+        self.assertEqual(mock_admin_list_groups_for_user.call_args_list, expected_calls)
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_list_groups_for_user_token_error_type_username(self, mock_client: Mock):
+        mock_admin_list_groups_for_user = mock_client.return_value.admin_list_groups_for_user
+
+        with self.assertRaises(ValueError) as exc:
+            self.cognito.admin_list_groups_for_user(username=342)
+
+        self.assertEqual(str(exc.exception), "The username should be a string.")
+        self.assertEqual(mock_admin_list_groups_for_user.call_count, 0)
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_list_groups_for_user_token_error_type_limit(self, mock_client: Mock):
+        mock_admin_list_groups_for_user = mock_client.return_value.admin_list_groups_for_user
+
+        with self.assertRaises(ValueError) as exc:
+            self.cognito.admin_list_groups_for_user(username="test1", limit="10", next_token="23123")
+
+        self.assertEqual(str(exc.exception), "The limit should be an integer.")
+        self.assertEqual(mock_admin_list_groups_for_user.call_count, 0)
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_list_groups_for_user_token_error_type_next_token(self, mock_client: Mock):
+        mock_admin_list_groups_for_user = mock_client.return_value.admin_list_groups_for_user
+
+        with self.assertRaises(ValueError) as exc:
+            self.cognito.admin_list_groups_for_user(username="test1", limit=10, next_token=23123)
+
+        self.assertEqual(str(exc.exception), "The next_token should be a string.")
+        self.assertEqual(mock_admin_list_groups_for_user.call_count, 0)
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_reset_user_password(self, mock_client: Mock):
+        mock_admin_reset_user_password = mock_client.return_value.admin_reset_user_password
+        expected_calls = [call(Username="test1", UserPoolId="eu-12_test")]
+
+        self.cognito.admin_reset_user_password(username="test1")
+
+        self.assertEqual(mock_admin_reset_user_password.call_args_list, expected_calls)
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_reset_user_password_error(self, mock_client: Mock):
+        mock_admin_reset_user_password = mock_client.return_value.admin_reset_user_password
+        mock_admin_reset_user_password.side_effect = ClientError(
+            error_response={"Error": {"Message": "Error username"}}, operation_name="test"
+        )
+        expected_calls = [call(Username="test1", UserPoolId="eu-12_test")]
+
+        with self.assertRaises(ExceptionAuthCognito) as exc:
+            self.cognito.admin_reset_user_password(username="test1")
+
+        self.assertEqual(str(exc.exception), "Error username")
+        self.assertEqual(mock_admin_reset_user_password.call_args_list, expected_calls)
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_admin_reset_user_password_error_type(self, mock_client: Mock):
+        mock_admin_reset_user_password = mock_client.return_value.admin_reset_user_password
+
+        with self.assertRaises(ValueError) as exc:
+            self.cognito.admin_reset_user_password(username=23)
+
+        self.assertEqual(str(exc.exception), "The username should be a string.")
+        self.assertEqual(mock_admin_reset_user_password.call_count, 0)
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_resolve_challenge_challenge_sms_mfa(self, mock_client: Mock):
+        mock_admin_respond_to_auth_challenge = mock_client.return_value.admin_respond_to_auth_challenge
+        mock_admin_respond_to_auth_challenge.return_value = {
+            "AuthenticationResult": {"AccessToken": "test1232", "RefreshToken": "test2332"}
+        }
+        expected_calls = [
+            call(
+                ClientId="dtest34453",
+                UserPoolId="eu-12_test",
+                ChallengeName="SMS_MFA",
+                Session="session_test",
+                ChallengeResponses={
+                    "SMS_MFA_CODE": "test_code",
+                    "USERNAME": "test1",
+                    "SECRET_HASH": "0ht/aQ+Y1wA2FL6XYkn3UoUfZu67Ik+/On25xDAlwpo=",
+                },
+            )
+        ]
+        expected_response = {"access_token": "test1232", "refresh_token": "test2332"}
+
+        cognito = CognitoPy(
+            userpool_id="eu-12_test", client_id="dtest34453", client_secret="dtest34334444", secret_hash=True
+        )
+        response = cognito.resolve_challenge_challenge_sms_mfa(
+            session="session_test", sms_mfa_code="test_code", username="test1"
+        )
+
+        self.assertEqual(mock_admin_respond_to_auth_challenge.call_args_list, expected_calls)
+        self.assertEqual(response, expected_response)
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_resolve_challenge_challenge_sms_mfa_error(self, mock_client: Mock):
+        mock_admin_respond_to_auth_challenge = mock_client.return_value.admin_respond_to_auth_challenge
+        mock_admin_respond_to_auth_challenge.side_effect = ClientError(
+            error_response={"Error": {"Message": "Error username"}}, operation_name="test"
+        )
+        expected_calls = [
+            call(
+                ClientId="dtest34453",
+                UserPoolId="eu-12_test",
+                ChallengeName="SMS_MFA",
+                Session="session_test",
+                ChallengeResponses={"SMS_MFA_CODE": "test_code", "USERNAME": "test1"},
+            )
+        ]
+
+        with self.assertRaises(ExceptionAuthCognito) as exc:
+            self.cognito.resolve_challenge_challenge_sms_mfa(
+                session="session_test", sms_mfa_code="test_code", username="test1"
+            )
+
+        self.assertEqual(mock_admin_respond_to_auth_challenge.call_args_list, expected_calls)
+        self.assertEqual(str(exc.exception), "Error username")
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_resolve_challenge_challenge_sms_mfa_error_type(self, mock_client: Mock):
+        mock_admin_respond_to_auth_challenge = mock_client.return_value.admin_respond_to_auth_challenge
+
+        with self.assertRaises(ValueError) as exc:
+            self.cognito.resolve_challenge_challenge_sms_mfa(
+                session="session_test", sms_mfa_code="test_code", username=334
+            )
+
+        self.assertEqual(mock_admin_respond_to_auth_challenge.call_count, 0)
+        self.assertEqual(str(exc.exception), "The session. sms_mfa_code and username should be strings.")
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_resolve_challenge_new_password(self, mock_client: Mock):
+        mock_admin_respond_to_auth_challenge = mock_client.return_value.admin_respond_to_auth_challenge
+        mock_admin_respond_to_auth_challenge.return_value = {
+            "AuthenticationResult": {"AccessToken": "test1232", "RefreshToken": "test2332"}
+        }
+        expected_calls = [
+            call(
+                ClientId="dtest34453",
+                UserPoolId="eu-12_test",
+                ChallengeName="NEW_PASSWORD_REQUIRED",
+                ChallengeResponses={
+                    "NEW_PASSWORD": "test_password",
+                    "USERNAME": "test1",
+                    "SECRET_HASH": "0ht/aQ+Y1wA2FL6XYkn3UoUfZu67Ik+/On25xDAlwpo=",
+                },
+                Session="session_test",
+            )
+        ]
+        expected_response = {"access_token": "test1232", "refresh_token": "test2332"}
+
+        cognito = CognitoPy(
+            userpool_id="eu-12_test", client_id="dtest34453", client_secret="dtest34334444", secret_hash=True
+        )
+        response = cognito.resolve_challenge_new_password(
+            session="session_test", new_password="test_password", username="test1"
+        )
+
+        self.assertEqual(mock_admin_respond_to_auth_challenge.call_args_list, expected_calls)
+        self.assertEqual(response, expected_response)
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_resolve_challenge_new_password_error(self, mock_client: Mock):
+        mock_admin_respond_to_auth_challenge = mock_client.return_value.admin_respond_to_auth_challenge
+        mock_admin_respond_to_auth_challenge.side_effect = ClientError(
+            error_response={"Error": {"Message": "Error username"}}, operation_name="test"
+        )
+        expected_calls = [
+            call(
+                ClientId="dtest34453",
+                UserPoolId="eu-12_test",
+                ChallengeName="NEW_PASSWORD_REQUIRED",
+                ChallengeResponses={"NEW_PASSWORD": "test_password", "USERNAME": "test1"},
+                Session="session_test",
+            )
+        ]
+
+        with self.assertRaises(ExceptionAuthCognito) as exc:
+            self.cognito.resolve_challenge_new_password(
+                session="session_test", new_password="test_password", username="test1"
+            )
+
+        self.assertEqual(mock_admin_respond_to_auth_challenge.call_args_list, expected_calls)
+        self.assertEqual(str(exc.exception), "Error username")
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_resolve_challenge_new_password_error_type(self, mock_client: Mock):
+        mock_admin_respond_to_auth_challenge = mock_client.return_value.admin_respond_to_auth_challenge
+
+        with self.assertRaises(ValueError) as exc:
+            self.cognito.resolve_challenge_new_password(
+                session="session_test", new_password="test_password", username=334
+            )
+
+        self.assertEqual(mock_admin_respond_to_auth_challenge.call_count, 0)
+        self.assertEqual(str(exc.exception), "The session, username and new_password should be strings.")
