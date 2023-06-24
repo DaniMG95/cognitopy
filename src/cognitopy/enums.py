@@ -19,3 +19,8 @@ class AuthFlow(Enum):
 class AdminAuthFlow(Enum):
     REFRESH_TOKEN_AUTH = "REFRESH_TOKEN_AUTH"
     ADMIN_USER_PASSWORD_AUTH = "ADMIN_USER_PASSWORD_AUTH"
+
+
+class ChallengeName(Enum):
+    SMS_MFA = "SMS_MFA"
+    NEW_PASSWORD_REQUIRED = "NEW_PASSWORD_REQUIRED"
