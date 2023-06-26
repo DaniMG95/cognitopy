@@ -24,7 +24,8 @@ cognitopy = CognitoPy(
 with CognitoPy(
     userpool_id=COGNITO_USERPOOL_ID, client_id=COGNITO_APP_CLIENT_ID, client_secret=COGNITO_APP_CLIENTE_SECRET
 ) as cognito:
-    cognito.register(username="XXXXX@mail.to", password="XXXXXXX8", user_attributes={})
+    id_user = cognito.register(username="XXXXX@mail.to", password="XXXXXXX8", user_attributes={})
+    print(id_user)
 
 
 # Confirm user registration

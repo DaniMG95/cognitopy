@@ -242,6 +242,7 @@ class TestCognito(TestCase):
     @patch("cognitopy.cognitopy.boto3.client")
     def test_register(self, mock_client: Mock):
         mock_sign_up = mock_client.return_value.sign_up
+        mock_sign_up.return_value = {"UserConfirmed": True, "UserSub": "test1232"}
         expected_calls = [
             call(
                 ClientId="dtest34453",
@@ -255,9 +256,12 @@ class TestCognito(TestCase):
         cognito = CognitoPy(
             userpool_id="eu-12_test", client_id="dtest34453", client_secret="dtest34334444", secret_hash=True
         )
-        cognito.register(username="username_test", password="password_test", user_attributes={"email": "email_test"})
+        response = cognito.register(
+            username="username_test", password="password_test", user_attributes={"email": "email_test"}
+        )
 
         self.assertEqual(mock_sign_up.call_args_list, expected_calls)
+        self.assertEqual(response, "test1232")
 
     @patch("cognitopy.cognitopy.boto3.client")
     def test_register_error(self, mock_client: Mock):

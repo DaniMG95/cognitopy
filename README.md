@@ -51,7 +51,8 @@ with CognitoPy(userpool_id=COGNITO_USERPOOL_ID, client_id=COGNITO_APP_CLIENT_ID,
 ### Register a new user
 It will register a user in our cognito service and send us a confirmation message.
 ```python
-cognito.register(username='XXXXX@mail.to', password='XXXXXXX8', user_attributes={})
+id_user = cognito.register(username='XXXXX@mail.to', password='XXXXXXX8', user_attributes={})
+print(id_user)
 ```
 
 ### Confirm a new user
