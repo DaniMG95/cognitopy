@@ -187,14 +187,14 @@ class CognitoPy:
             self.__REFRESH_TOKEN_KEY: response[self.__AUTHENTICATION_RESULT][self.__REFRESH_TOKEN],
         }
 
-    def register(self, username: str, user_attributes: dict, password: str) -> None:
+    def register(self, username: str, user_attributes: dict, password: str) -> str:
         if not isinstance(username, str) or not isinstance(user_attributes, dict) or not isinstance(password, str):
             raise ValueError("The username, password should be strings and user_attributes should be a dict.")
         cognito_attributes = self.__dict_to_cognito(user_attributes)
         arg_secret_hash = {}
         self.__check_need_secret_hash(username=username, data=arg_secret_hash, key_secret_hash=self.__SECRET_HASH_ARG)
         try:
-            self.__client.sign_up(
+            response = self.__client.sign_up(
                 ClientId=self.__client_id,
                 Username=username,
                 Password=password,
@@ -203,6 +203,7 @@ class CognitoPy:
             )
         except ClientError as e:
             raise ExceptionAuthCognito(e.response[self.__ERROR][self.__MESSAGE])
+        return response["UserSub"]
 
     def resend_confirmation_code(self, username: str) -> None:
         if not isinstance(username, str):
