@@ -256,12 +256,12 @@ class TestCognito(TestCase):
         cognito = CognitoPy(
             userpool_id="eu-12_test", client_id="dtest34453", client_secret="dtest34334444", secret_hash=True
         )
-        responser = cognito.register(
+        response = cognito.register(
             username="username_test", password="password_test", user_attributes={"email": "email_test"}
         )
 
         self.assertEqual(mock_sign_up.call_args_list, expected_calls)
-        self.assertEqual(responser, "test1232")
+        self.assertEqual(response, "test1232")
 
     @patch("cognitopy.cognitopy.boto3.client")
     def test_register_error(self, mock_client: Mock):
