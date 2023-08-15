@@ -1508,3 +1508,47 @@ class TestCognito(TestCase):
 
         self.assertEqual(mock_admin_respond_to_auth_challenge.call_count, 0)
         self.assertEqual(str(exc.exception), "The session, username and new_password should be strings.")
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_revoke_refresh_token(self, mock_client: Mock):
+        mock_revoke_token = mock_client.return_value.revoke_token
+        mock_revoke_token.return_value = {}
+        expected_calls = [call(Token="token_test", ClientId="dtest34453", ClientSecret="dtest34334444")]
+
+        cognito = CognitoPy(
+            userpool_id="eu-12_test", client_id="dtest34453", client_secret="dtest34334444", secret_hash=True
+        )
+        cognito.revoke_refresh_token(token="token_test")
+
+        self.assertEqual(mock_revoke_token.call_args_list, expected_calls)
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_revoke_refresh_token_error_type(self, mock_client: Mock):
+        mock_revoke_token = mock_client.return_value.revoke_token
+
+        cognito = CognitoPy(
+            userpool_id="eu-12_test", client_id="dtest34453", client_secret="dtest34334444", secret_hash=True
+        )
+        with self.assertRaises(ValueError) as exc:
+            cognito.revoke_refresh_token(token=232)
+
+        self.assertEqual(str(exc.exception), "The token should be a string.")
+        self.assertEqual(mock_revoke_token.call_count, 0)
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_revoke_refresh_token_error_client(self, mock_client: Mock):
+        mock_revoke_token = mock_client.return_value.revoke_token
+        mock_revoke_token.side_effect = ClientError(
+            error_response={"Error": {"Message": "Error token"}}, operation_name="test"
+        )
+        expected_calls = [call(Token="token_test", ClientId="dtest34453", ClientSecret="dtest34334444")]
+
+        cognito = CognitoPy(
+            userpool_id="eu-12_test", client_id="dtest34453", client_secret="dtest34334444", secret_hash=True
+        )
+
+        with self.assertRaises(ExceptionAuthCognito) as exc:
+            cognito.revoke_refresh_token(token="token_test")
+
+        self.assertEqual(str(exc.exception), "Error token")
+        self.assertEqual(mock_revoke_token.call_args_list, expected_calls)
