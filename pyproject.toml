@@ -7,7 +7,7 @@ line-length = 120
 
 [project]
 name = "cognitopy"
-version = "1.1.1"
+version = "1.1.2"
 authors = [
   { name="Daniel Muñoz Gonzalez", email="dani16595@gmail.com" },
 ]
