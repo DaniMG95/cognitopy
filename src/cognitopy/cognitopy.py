@@ -488,7 +488,7 @@ class CognitoPy:
             self.__REFRESH_TOKEN_KEY: response[self.__AUTHENTICATION_RESULT][self.__REFRESH_TOKEN],
         }
 
-    def resolve_challenge_new_password(self, session: str, username: str, new_password: str):
+    def resolve_challenge_new_password(self, session: str, username: str, new_password: str) -> dict:
         if not isinstance(session, str) or not isinstance(username, str) or not isinstance(new_password, str):
             raise ValueError("The session, username and new_password should be strings.")
 
@@ -500,3 +500,11 @@ class CognitoPy:
             self.__ACCESS_TOKEN_KEY: response[self.__AUTHENTICATION_RESULT][self.__ACCESS_TOKEN],
             self.__REFRESH_TOKEN_KEY: response[self.__AUTHENTICATION_RESULT][self.__REFRESH_TOKEN],
         }
+
+    def revoke_refresh_token(self, token: str) -> None:
+        if not isinstance(token, str):
+            raise ValueError("The token should be a string.")
+        try:
+            self.__client.revoke_token(Token=token, ClientId=self.__client_id, ClientSecret=self.__client_secret)
+        except ClientError as e:
+            raise ExceptionAuthCognito(e.response[self.__ERROR][self.__MESSAGE])
