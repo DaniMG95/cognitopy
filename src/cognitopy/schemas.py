@@ -7,6 +7,10 @@ class CodeDeliveryDetails(BaseModel):
     attribute_name: str = Field(alias='AttributeName')
 
 
+class CodeDeliveryDetailsSchema(BaseModel):
+    delivery_details: CodeDeliveryDetails = Field(alias='CodeDeliveryDetails')
+
+
 class UserRegister(BaseModel):
     confirmed: bool = Field(alias='UserConfirmed')
     delivery_details: CodeDeliveryDetails = Field(alias='CodeDeliveryDetails')
