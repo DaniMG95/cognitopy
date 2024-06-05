@@ -22,9 +22,6 @@ jobs:
         with:
           python-version: "3.9"
 
-      - name: Building Project
-        run: poetry build
-
       - name: Publish package distributions to TestPyPI
         uses: JRubics/poetry-publish@v2.0
         with:
