@@ -16,16 +16,16 @@ jobs:
         python-version: "3.9"
     - name: Install Poetry
       uses: snok/install-poetry@v1
+      with:
+        virtualenvs-create: true
+        virtualenvs-in-project: true
     - name: Install dependencies
       run: |
         poetry install
-    - name: list dependencies
-      run: |
-        pip list
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
-        flake8 .
+        poetry flake8
     - name: Test with unittest
       run: |
         coverage run -m unittest

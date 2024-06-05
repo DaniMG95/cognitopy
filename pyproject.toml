@@ -22,8 +22,16 @@ classifiers = [
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
+
 [tool.black]
 line-length = 120
+
+[tool.coverage.report]
+skip_empty=true
+include=["src/*"]
+
+[tool.coverage.run]
+source="src"
 
 
 [tool.poetry.dependencies]

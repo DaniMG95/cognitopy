@@ -1,5 +1,0 @@
-[run]
-source=src
-[report]
-skip_empty=True
-include=src/*
