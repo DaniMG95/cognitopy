@@ -21,7 +21,7 @@ jobs:
         virtualenvs-in-project: true
     - name: Install dependencies
       run: |
-        poetry install
+        poetry install; poetry shell
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
