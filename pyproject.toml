@@ -31,7 +31,7 @@ skip_empty=true
 include=["src/*"]
 
 [tool.coverage.run]
-source="src"
+source=["src"]
 
 
 [tool.poetry.dependencies]

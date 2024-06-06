@@ -21,14 +21,14 @@ jobs:
         virtualenvs-in-project: true
     - name: Install dependencies
       run: |
-        poetry install; poetry shell
+        poetry install
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
-        poetry flake8
+        poetry run flake8
     - name: Test with unittest
       run: |
-        coverage run -m unittest
+        poetry run coverage run -m unittest
     - name: Generate xml Coverage
       run: |
         coverage xml
