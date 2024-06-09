@@ -31,7 +31,7 @@ jobs:
         poetry run coverage run -m unittest
     - name: Generate xml Coverage
       run: |
-        coverage xml
+        poetry run coverage xml
     - name: Monitor coverage
       uses: orgoro/coverage@v3
       with:
