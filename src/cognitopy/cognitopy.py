@@ -201,7 +201,7 @@ class CognitoPy:
             raise ExceptionAuthCognito(
                 f'The user must complete challenge auth use function '
                 f'admin_respond_to_auth_challenge with challenge_name='
-                f'{response['ChallengeName']}, the session is {response['Session']}.'
+                f"{response['ChallengeName']}, the session is {response['Session']}."
             )
         return {
             self.__ACCESS_TOKEN_KEY: response[self.__AUTHENTICATION_RESULT][self.__ACCESS_TOKEN],
@@ -449,7 +449,7 @@ class CognitoPy:
             raise ExceptionAuthCognito(
                 f'The user must complete challenge auth use function '
                 f'admin_respond_to_auth_challenge with challenge_name='
-                f'{response['ChallengeName']}, the session is {response['Session']}.'
+                f"{response['ChallengeName']}, the session is {response['Session']}."
             )
         return {
             self.__ACCESS_TOKEN_KEY: response[self.__AUTHENTICATION_RESULT][self.__ACCESS_TOKEN],
