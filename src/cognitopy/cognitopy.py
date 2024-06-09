@@ -178,7 +178,7 @@ class CognitoPy:
         self.__client.close()
         self.__client_boto3 = None
 
-    def renew_access_token(self, access_token: str, refresh_token: str) -> str:
+    def __renew_access_token(self, access_token: str, refresh_token: str, admin: bool=False) -> str:
         if not isinstance(access_token, str) or not isinstance(refresh_token, str):
             raise ValueError('The access_token and refresh_token should be strings.')
         auth_parameters = {
@@ -187,8 +187,12 @@ class CognitoPy:
         secret_hash = self.__check_need_secret_hash(access_token=access_token, key=self.__SECRET_HASH)
         auth_parameters = dict(auth_parameters, **secret_hash)
 
-        response = self.__initiate_auth(auth_parameters=auth_parameters, auth_flow=AuthFlow.REFRESH_TOKEN_AUTH)
+        response = self.__initiate_auth(auth_parameters=auth_parameters, auth_flow=AuthFlow.REFRESH_TOKEN_AUTH,
+                                        admin=admin)
         return response[self.__AUTHENTICATION_RESULT][self.__ACCESS_TOKEN]
+
+    def renew_access_token(self, access_token: str, refresh_token: str) -> str:
+        return self.__renew_access_token(access_token=access_token, refresh_token=refresh_token)
 
     def login(self, username: str, password: str) -> dict:
         if not isinstance(username, str) or not isinstance(password, str):
@@ -457,17 +461,7 @@ class CognitoPy:
         }
 
     def admin_renew_access_token(self, access_token: str, refresh_token: str) -> str:
-        if not isinstance(access_token, str) or not isinstance(refresh_token, str):
-            raise ValueError('The access_token and refresh_token should be strings.')
-        auth_parameters = {
-            self.__REFRESH_TOKEN_KEY.upper(): refresh_token,
-        }
-        secret_hash = self.__check_need_secret_hash( access_token=access_token, key=self.__SECRET_HASH)
-        auth_parameters = dict(auth_parameters, **secret_hash)
-        response = self.__initiate_auth(
-            auth_flow=AdminAuthFlow.REFRESH_TOKEN_AUTH, auth_parameters=auth_parameters, admin=True
-        )
-        return response[self.__AUTHENTICATION_RESULT][self.__ACCESS_TOKEN]
+        return self.__renew_access_token(access_token=access_token, refresh_token=refresh_token, admin=True)
 
     def admin_list_groups_for_user(self, username: str, limit: int = None, next_token: str = None) -> dict:
         if not isinstance(username, str):
