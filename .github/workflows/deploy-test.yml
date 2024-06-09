@@ -17,13 +17,9 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
 
-      - name: Set up Python 3.9
-        uses: actions/setup-python@v3
-        with:
-          python-version: "3.9"
-
       - name: Publish package distributions to TestPyPI
         uses: JRubics/poetry-publish@v2.0
         with:
+          python_version: "3.9"
           repository-url: https://test.pypi.org/legacy/
           pypi_token: ${{ secrets.TEST_PYPI_API_TOKEN }}
