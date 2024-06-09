@@ -12,12 +12,138 @@ from cognitopy.exceptions import (
 from botocore.exceptions import ClientError, EndpointConnectionError
 from cognitopy.enums import MessageAction, DesiredDelivery
 from datetime import datetime
+from cognitopy.schemas import UserRegister, CodeDeliveryDetails, CodeDeliveryDetailsSchema
 
 
 class TestCognito(TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls.cognito = CognitoPy(userpool_id="eu-12_test", client_id="dtest34453", client_secret="dtest34334444")
+    def setUp(self) -> None:
+        self.cognito = CognitoPy(userpool_id="eu-12_test", client_id="dtest34453", client_secret="dtest34334444")
+
+    def test_dict_to_cognito(self):
+        attributes = {"atb_test1": "value1", "atb_test2": "value2", "atb_test3": False}
+
+        response = self.cognito._CognitoPy__dict_to_cognito(attributes=attributes)
+
+        self.assertEqual(
+            [
+                {"Name": "atb_test1", "Value": "value1"},
+                {"Name": "atb_test2", "Value": "value2"},
+                {"Name": "atb_test3", "Value": "false"},
+            ],
+            response,
+        )
+
+    def test_dict_to_cognito_error_dict(self):
+        attributes = {"atb_test1": {"test1": "value"}, "atb_test2": "value2"}
+
+        with self.assertRaises(ValueError) as exc:
+            self.cognito._CognitoPy__dict_to_cognito(attributes=attributes)
+
+        self.assertEqual(
+            "The key attributes should be a dictionary and value should be a string or number", str(exc.exception)
+        )
+
+    def test_dict_to_cognito_error_type_value_in_dict(self):
+        attributes = {"atb_test1": [], "atb_test2": "value2"}
+
+        with self.assertRaises(ValueError) as exc:
+            self.cognito._CognitoPy__dict_to_cognito(attributes=attributes)
+
+        self.assertEqual(
+            "The key attributes should be a dictionary and value should be a string or number", str(exc.exception)
+        )
+
+    def test_dict_to_cognito_error_type_value(self):
+        with self.assertRaises(ValueError) as exc:
+            self.cognito._CognitoPy__dict_to_cognito(attributes=45)
+
+        self.assertEqual("attributes should be a dictionary.", str(exc.exception))
+
+    @patch("cognitopy.cognitopy.CognitoPy.get_info_user_by_token")
+    @patch("cognitopy.cognitopy.CognitoPy._CognitoPy__get_secret_hash")
+    def test_check_need_secret_hash(self, mock_get_secret_hash: Mock, mock_get_info: Mock):
+        mock_get_secret_hash.side_effect = ["test-hash"]
+
+        cognito = CognitoPy(
+            userpool_id="eu-12_test", client_id="dtest34453", client_secret="dtest34334444", secret_hash=True
+        )
+        data = cognito._CognitoPy__check_need_secret_hash(username="test", key="SECRET_HASH")
+
+        self.assertEqual({"SECRET_HASH": "test-hash"}, data)
+        self.assertEqual([call(username="test")], mock_get_secret_hash.call_args_list)
+        self.assertEqual(0, mock_get_info.call_count)
+
+    @patch("cognitopy.cognitopy.CognitoPy.get_info_user_by_token")
+    @patch("cognitopy.cognitopy.CognitoPy._CognitoPy__get_secret_hash")
+    def test_check_need_secret_hash_without_secret_hash(self, mock_get_secret_hash: Mock, mock_get_info: Mock):
+
+        data = self.cognito._CognitoPy__check_need_secret_hash(username="test", key="test")
+
+        self.assertEqual({}, data)
+        self.assertEqual(0, mock_get_secret_hash.call_count)
+        self.assertEqual(0, mock_get_info.call_count)
+
+    @patch("cognitopy.cognitopy.CognitoPy.get_info_user_by_token")
+    @patch("cognitopy.cognitopy.CognitoPy._CognitoPy__get_secret_hash")
+    def test_check_need_secret_hash_token(self, mock_get_secret_hash: Mock, mock_get_info: Mock):
+        mock_get_info.side_effect = [{"username": "test1", "groups": []}]
+        mock_get_secret_hash.side_effect = ["test-hash"]
+
+        cognito = CognitoPy(
+            userpool_id="eu-12_test", client_id="dtest34453", client_secret="dtest34334444", secret_hash=True
+        )
+        data = cognito._CognitoPy__check_need_secret_hash(access_token="token-test", key="SECRET_HASH")
+
+        self.assertEqual({"SECRET_HASH": "test-hash"}, data)
+        self.assertEqual([call(username="test1")], mock_get_secret_hash.call_args_list)
+        self.assertEqual([call(access_token="token-test")], mock_get_info.call_args_list)
+
+    @patch("cognitopy.cognitopy.CognitoPy.get_info_user_by_token")
+    @patch("cognitopy.cognitopy.CognitoPy._CognitoPy__get_secret_hash")
+    def test_check_need_secret_hash_token_exception_get_info(self, mock_get_secret_hash: Mock, mock_get_info: Mock):
+        mock_get_info.side_effect = [ExceptionJWTCognito("Error decoding token claims.")]
+
+        cognito = CognitoPy(
+            userpool_id="eu-12_test", client_id="dtest34453", client_secret="dtest34334444", secret_hash=True
+        )
+        with self.assertRaises(ExceptionJWTCognito) as exc:
+            cognito._CognitoPy__check_need_secret_hash(access_token="token-test", key="test")
+
+        self.assertEqual("Error decoding token claims.", str(exc.exception))
+        self.assertEqual(0, mock_get_secret_hash.call_count)
+        self.assertEqual([call(access_token="token-test")], mock_get_info.call_args_list)
+
+    @patch("cognitopy.cognitopy.CognitoPy.get_info_user_by_token")
+    @patch("cognitopy.cognitopy.CognitoPy._CognitoPy__get_secret_hash")
+    def test_check_need_secret_hash_error_type_key(self, mock_get_secret_hash: Mock, mock_get_info: Mock):
+        with self.assertRaises(ValueError) as exc:
+            self.cognito._CognitoPy__check_need_secret_hash(access_token="34", key=45)
+
+        self.assertEqual("Username, access_token, key should be string", str(exc.exception))
+        self.assertEqual(0, mock_get_secret_hash.call_count)
+        self.assertEqual(0, mock_get_info.call_count)
+
+    @patch("cognitopy.cognitopy.CognitoPy.get_info_user_by_token")
+    @patch("cognitopy.cognitopy.CognitoPy._CognitoPy__get_secret_hash")
+    def test_check_need_secret_hash_error_type_access_token(self, mock_get_secret_hash: Mock, mock_get_info: Mock):
+
+        with self.assertRaises(ValueError) as exc:
+            self.cognito._CognitoPy__check_need_secret_hash(access_token=34, key="test")
+
+        self.assertEqual("Username, access_token, key should be string", str(exc.exception))
+        self.assertEqual(0, mock_get_secret_hash.call_count)
+        self.assertEqual(0, mock_get_info.call_count)
+
+    @patch("cognitopy.cognitopy.CognitoPy.get_info_user_by_token")
+    @patch("cognitopy.cognitopy.CognitoPy._CognitoPy__get_secret_hash")
+    def test_check_need_secret_hash_error_type_username(self, mock_get_secret_hash: Mock, mock_get_info: Mock):
+
+        with self.assertRaises(ValueError) as exc:
+            self.cognito._CognitoPy__check_need_secret_hash(username=34, key="test")
+
+        self.assertEqual("Username, access_token, key should be string", str(exc.exception))
+        self.assertEqual(0, mock_get_secret_hash.call_count)
+        self.assertEqual(0, mock_get_info.call_count)
 
     def test_create_cognito(self):
         cognito = CognitoPy(userpool_id="eu-12_test", client_id="dtest34453", client_secret="dtest34334444")
@@ -240,9 +366,13 @@ class TestCognito(TestCase):
         self.assertEqual(str(exc.exception), "The username and password should be strings.")
 
     @patch("cognitopy.cognitopy.boto3.client")
-    def test_register(self, mock_client: Mock):
+    def test_register_with_secret_hash(self, mock_client: Mock):
         mock_sign_up = mock_client.return_value.sign_up
-        mock_sign_up.return_value = {"UserConfirmed": True, "UserSub": "test1232"}
+        mock_sign_up.return_value = {
+            "UserConfirmed": False,
+            "UserSub": "test1232",
+            "CodeDeliveryDetails": {"Destination": "d***@g***", "DeliveryMedium": "EMAIL", "AttributeName": "email"},
+        }
         expected_calls = [
             call(
                 ClientId="dtest34453",
@@ -250,8 +380,91 @@ class TestCognito(TestCase):
                 Password="password_test",
                 UserAttributes=[{"Name": "email", "Value": "email_test"}],
                 SecretHash="sD6vefe+JNM/kycHW3x6NhCdVMF2QbcJ2ztDjwr47DY=",
+                ValidationData=[{"Name": "test-v1", "Value": "value-test"}],
             )
         ]
+        expected_response = UserRegister(
+            UserConfirmed=False,
+            UserSub="test1232",
+            CodeDeliveryDetails=CodeDeliveryDetails(
+                Destination="d***@g***", DeliveryMedium="EMAIL", AttributeName="email"
+            ),
+        )
+
+        cognito = CognitoPy(
+            userpool_id="eu-12_test", client_id="dtest34453", client_secret="dtest34334444", secret_hash=True
+        )
+        response = cognito.register(
+            username="username_test",
+            password="password_test",
+            user_attributes={"email": "email_test"},
+            validation_data={"test-v1": "value-test"},
+        )
+
+        self.assertEqual(expected_calls, mock_sign_up.call_args_list)
+        self.assertEqual(expected_response, response)
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_register_without_user_attribute(self, mock_client: Mock):
+        mock_sign_up = mock_client.return_value.sign_up
+        mock_sign_up.return_value = {
+            "UserConfirmed": False,
+            "UserSub": "test1232",
+            "CodeDeliveryDetails": {"Destination": "d***@g***", "DeliveryMedium": "EMAIL", "AttributeName": "email"},
+        }
+        expected_calls = [
+            call(
+                ClientId="dtest34453",
+                Username="username_test",
+                Password="password_test",
+                UserAttributes=[],
+                SecretHash="sD6vefe+JNM/kycHW3x6NhCdVMF2QbcJ2ztDjwr47DY=",
+                ValidationData=[{"Name": "test-v1", "Value": "value-test"}],
+            )
+        ]
+        expected_response = UserRegister(
+            UserConfirmed=False,
+            UserSub="test1232",
+            CodeDeliveryDetails=CodeDeliveryDetails(
+                Destination="d***@g***", DeliveryMedium="EMAIL", AttributeName="email"
+            ),
+        )
+
+        cognito = CognitoPy(
+            userpool_id="eu-12_test", client_id="dtest34453", client_secret="dtest34334444", secret_hash=True
+        )
+        response = cognito.register(
+            username="username_test", password="password_test", validation_data={"test-v1": "value-test"}
+        )
+
+        self.assertEqual(expected_calls, mock_sign_up.call_args_list)
+        self.assertEqual(expected_response, response)
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_register_without_validation(self, mock_client: Mock):
+        mock_sign_up = mock_client.return_value.sign_up
+        mock_sign_up.return_value = {
+            "UserConfirmed": False,
+            "UserSub": "test1232",
+            "CodeDeliveryDetails": {"Destination": "d***@g***", "DeliveryMedium": "EMAIL", "AttributeName": "email"},
+        }
+        expected_calls = [
+            call(
+                ClientId="dtest34453",
+                Username="username_test",
+                Password="password_test",
+                UserAttributes=[{"Name": "email", "Value": "email_test"}],
+                SecretHash="sD6vefe+JNM/kycHW3x6NhCdVMF2QbcJ2ztDjwr47DY=",
+                ValidationData=[],
+            )
+        ]
+        expected_response = UserRegister(
+            UserConfirmed=False,
+            UserSub="test1232",
+            CodeDeliveryDetails=CodeDeliveryDetails(
+                Destination="d***@g***", DeliveryMedium="EMAIL", AttributeName="email"
+            ),
+        )
 
         cognito = CognitoPy(
             userpool_id="eu-12_test", client_id="dtest34453", client_secret="dtest34334444", secret_hash=True
@@ -260,8 +473,43 @@ class TestCognito(TestCase):
             username="username_test", password="password_test", user_attributes={"email": "email_test"}
         )
 
-        self.assertEqual(mock_sign_up.call_args_list, expected_calls)
-        self.assertEqual(response, "test1232")
+        self.assertEqual(expected_calls, mock_sign_up.call_args_list)
+        self.assertEqual(expected_response, response)
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_register(self, mock_client: Mock):
+        mock_sign_up = mock_client.return_value.sign_up
+        mock_sign_up.return_value = {
+            "UserConfirmed": False,
+            "UserSub": "test1232",
+            "CodeDeliveryDetails": {"Destination": "d***@g***", "DeliveryMedium": "EMAIL", "AttributeName": "email"},
+        }
+        expected_calls = [
+            call(
+                ClientId="dtest34453",
+                Username="username_test",
+                Password="password_test",
+                UserAttributes=[{"Name": "email", "Value": "email_test"}],
+                ValidationData=[{"Name": "test-v1", "Value": "value-test"}],
+            )
+        ]
+        expected_response = UserRegister(
+            UserConfirmed=False,
+            UserSub="test1232",
+            CodeDeliveryDetails=CodeDeliveryDetails(
+                Destination="d***@g***", DeliveryMedium="EMAIL", AttributeName="email"
+            ),
+        )
+
+        response = self.cognito.register(
+            username="username_test",
+            password="password_test",
+            user_attributes={"email": "email_test"},
+            validation_data={"test-v1": "value-test"},
+        )
+
+        self.assertEqual(expected_calls, mock_sign_up.call_args_list)
+        self.assertEqual(expected_response, response)
 
     @patch("cognitopy.cognitopy.boto3.client")
     def test_register_error(self, mock_client: Mock):
@@ -276,6 +524,7 @@ class TestCognito(TestCase):
                 Username="username_test",
                 Password="password_test",
                 UserAttributes=[{"Name": "email", "Value": "email_test"}],
+                ValidationData=[],
             )
         ]
 
@@ -284,11 +533,11 @@ class TestCognito(TestCase):
                 username="username_test", password="password_test", user_attributes={"email": "email_test"}
             )
 
-        self.assertEqual(mock_sign_up.call_args_list, expected_calls)
-        self.assertEqual(str(exc.exception), "An account with the given email already exists.")
+        self.assertEqual(expected_calls, mock_sign_up.call_args_list)
+        self.assertEqual("An account with the given email already exists.", str(exc.exception))
 
     @patch("cognitopy.cognitopy.boto3.client")
-    def test_register_error_type(self, mock_client: Mock):
+    def test_register_error_type_user_attributes(self, mock_client: Mock):
         mock_sign_up = mock_client.return_value.sign_up
 
         with self.assertRaises(ValueError) as exc:
@@ -298,7 +547,49 @@ class TestCognito(TestCase):
 
         self.assertEqual(mock_sign_up.call_count, 0)
         self.assertEqual(
-            str(exc.exception), "The username, password should be strings and" " user_attributes should be a dict."
+            "The username and password should be strings, user_attributes and validation_data should be a " "dict.",
+            str(exc.exception),
+        )
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_register_error_type_username(self, mock_client: Mock):
+        mock_sign_up = mock_client.return_value.sign_up
+
+        with self.assertRaises(ValueError) as exc:
+            self.cognito.register(username=453, password="password_test")
+
+        self.assertEqual(mock_sign_up.call_count, 0)
+        self.assertEqual(
+            "The username and password should be strings, user_attributes and validation_data should be a " "dict.",
+            str(exc.exception),
+        )
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_register_error_type_validation_data(self, mock_client: Mock):
+        mock_sign_up = mock_client.return_value.sign_up
+
+        with self.assertRaises(ValueError) as exc:
+            self.cognito.register(
+                username="username_test", password="password_test", validation_data=["email", "email_test"]
+            )
+
+        self.assertEqual(mock_sign_up.call_count, 0)
+        self.assertEqual(
+            "The username and password should be strings, user_attributes and validation_data should be a " "dict.",
+            str(exc.exception),
+        )
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_register_error_type_password(self, mock_client: Mock):
+        mock_sign_up = mock_client.return_value.sign_up
+
+        with self.assertRaises(ValueError) as exc:
+            self.cognito.register(username="test_user", password=344)
+
+        self.assertEqual(mock_sign_up.call_count, 0)
+        self.assertEqual(
+            "The username and password should be strings, user_attributes and validation_data should be a " "dict.",
+            str(exc.exception),
         )
 
     @patch("cognitopy.cognitopy.boto3.client")
@@ -348,11 +639,47 @@ class TestCognito(TestCase):
     @patch("cognitopy.cognitopy.boto3.client")
     def test_resend_confirmation_code(self, mock_client: Mock):
         mock_resend_confirmation_code = mock_client.return_value.resend_confirmation_code
+        mock_resend_confirmation_code.side_effect = [
+            {"CodeDeliveryDetails": {"Destination": "d***@g***", "DeliveryMedium": "EMAIL", "AttributeName": "email"}}
+        ]
+        expected_response = CodeDeliveryDetailsSchema(
+            CodeDeliveryDetails=CodeDeliveryDetails(
+                Destination="d***@g***", DeliveryMedium="EMAIL", AttributeName="email"
+            )
+        )
         expected_calls = [call(ClientId="dtest34453", Username="username_test")]
 
-        self.cognito.resend_confirmation_code(username="username_test")
+        response = self.cognito.resend_confirmation_code(username="username_test")
 
-        self.assertEqual(mock_resend_confirmation_code.call_args_list, expected_calls)
+        self.assertEqual(expected_calls, mock_resend_confirmation_code.call_args_list)
+        self.assertEqual(expected_response, response)
+
+    @patch("cognitopy.cognitopy.boto3.client")
+    def test_resend_confirmation_code_with_secret_hash(self, mock_client: Mock):
+        mock_resend_confirmation_code = mock_client.return_value.resend_confirmation_code
+        mock_resend_confirmation_code.side_effect = [
+            {"CodeDeliveryDetails": {"Destination": "d***@g***", "DeliveryMedium": "EMAIL", "AttributeName": "email"}}
+        ]
+        expected_response = CodeDeliveryDetailsSchema(
+            CodeDeliveryDetails=CodeDeliveryDetails(
+                Destination="d***@g***", DeliveryMedium="EMAIL", AttributeName="email"
+            )
+        )
+        expected_calls = [
+            call(
+                ClientId="dtest34453",
+                Username="username_test",
+                SecretHash="sD6vefe+JNM/kycHW3x6NhCdVMF2QbcJ2ztDjwr47DY=",
+            )
+        ]
+
+        cognito = CognitoPy(
+            userpool_id="eu-12_test", client_id="dtest34453", client_secret="dtest34334444", secret_hash=True
+        )
+        response = cognito.resend_confirmation_code(username="username_test")
+
+        self.assertEqual(expected_calls, mock_resend_confirmation_code.call_args_list)
+        self.assertEqual(expected_response, response)
 
     @patch("cognitopy.cognitopy.boto3.client")
     def test_resend_confirmation_code_error(self, mock_client: Mock):
@@ -365,8 +692,8 @@ class TestCognito(TestCase):
         with self.assertRaises(ExceptionAuthCognito) as exc:
             self.cognito.resend_confirmation_code(username="username_test")
 
-        self.assertEqual(mock_resend_confirmation_code.call_args_list, expected_calls)
-        self.assertEqual(str(exc.exception), "Username incorrect.")
+        self.assertEqual(expected_calls, mock_resend_confirmation_code.call_args_list)
+        self.assertEqual("Username incorrect.", str(exc.exception))
 
     @patch("cognitopy.cognitopy.boto3.client")
     def test_resend_confirmation_code_error_type(self, mock_client: Mock):
@@ -375,8 +702,8 @@ class TestCognito(TestCase):
         with self.assertRaises(ValueError) as exc:
             self.cognito.resend_confirmation_code(username=23)
 
-        self.assertEqual(mock_resend_confirmation_code.call_count, 0)
-        self.assertEqual(str(exc.exception), "The username should be a string.")
+        self.assertEqual(0, mock_resend_confirmation_code.call_count)
+        self.assertEqual("The username should be a string.", str(exc.exception))
 
     @patch("cognitopy.cognitopy.boto3.client")
     def test_initiate_forgot_password(self, mock_client: Mock):
@@ -675,7 +1002,7 @@ class TestCognito(TestCase):
         self.assertEqual(mock_create_group.call_count, 0)
         self.assertEqual(
             str(exc.exception),
-            "The group_name, description and role arm should be strings" " and precedence should be an integer.",
+            "The group_name, description and role arm should be strings and precedence should be an integer.",
         )
 
     @patch("cognitopy.cognitopy.boto3.client")
@@ -1520,7 +1847,7 @@ class TestCognito(TestCase):
         )
         cognito.revoke_refresh_token(token="token_test")
 
-        self.assertEqual(mock_revoke_token.call_args_list, expected_calls)
+        self.assertEqual(expected_calls, mock_revoke_token.call_args_list)
 
     @patch("cognitopy.cognitopy.boto3.client")
     def test_revoke_refresh_token_error_type(self, mock_client: Mock):
@@ -1532,8 +1859,8 @@ class TestCognito(TestCase):
         with self.assertRaises(ValueError) as exc:
             cognito.revoke_refresh_token(token=232)
 
-        self.assertEqual(str(exc.exception), "The token should be a string.")
-        self.assertEqual(mock_revoke_token.call_count, 0)
+        self.assertEqual("The token should be a string.", str(exc.exception))
+        self.assertEqual(0, mock_revoke_token.call_count)
 
     @patch("cognitopy.cognitopy.boto3.client")
     def test_revoke_refresh_token_error_client(self, mock_client: Mock):
@@ -1550,5 +1877,5 @@ class TestCognito(TestCase):
         with self.assertRaises(ExceptionAuthCognito) as exc:
             cognito.revoke_refresh_token(token="token_test")
 
-        self.assertEqual(str(exc.exception), "Error token")
-        self.assertEqual(mock_revoke_token.call_args_list, expected_calls)
+        self.assertEqual("Error token", str(exc.exception))
+        self.assertEqual(expected_calls, mock_revoke_token.call_args_list)

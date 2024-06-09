@@ -7,6 +7,7 @@ from datetime import datetime
 from jose import jwt, JWTError
 from .exceptions import ExceptionJWTCognito, ExceptionAuthCognito, ExceptionConnectionCognito, ExceptionTokenExpired
 from .enums import MessageAction, DesiredDelivery, AuthFlow, AdminAuthFlow, ChallengeName
+from .schemas import UserRegister, CodeDeliveryDetailsSchema
 from typing import Union
 
 
@@ -30,6 +31,7 @@ class CognitoPy:
     __SMS_MFA_CODE = "SMS_MFA_CODE"
     __CHALLENGE_NAME = "ChallengeName"
     __SECRET_HASH_ARG = "SecretHash"
+    __client_boto3 = None
 
     def __init__(self, userpool_id: str, client_id: str, client_secret: str, secret_hash: bool = False):
         if not isinstance(userpool_id, str) or not isinstance(client_id, str) or not isinstance(client_secret, str):
@@ -67,12 +69,14 @@ class CognitoPy:
 
     @property
     def __client(self):
-        try:
-            client = boto3.client(self.__SERVICE_NAME, region_name=self.__region_name)
-        except EndpointConnectionError as e:
-            raise ExceptionConnectionCognito(str(e))
-        else:
-            return client
+        if not self.__client_boto3:
+            try:
+                client = boto3.client(self.__SERVICE_NAME, region_name=self.__region_name)
+            except EndpointConnectionError as e:
+                raise ExceptionConnectionCognito(str(e))
+            else:
+                self.__client_boto3 = client
+        return self.__client_boto3
 
     def __get_secret_hash(self, username: str) -> str:
         if not isinstance(username, str):
@@ -84,6 +88,15 @@ class CognitoPy:
 
     @staticmethod
     def __dict_to_cognito(attributes: dict) -> list[dict]:
+        if not isinstance(attributes, dict):
+            raise ValueError("attributes should be a dictionary.")
+        if any(
+            [
+                not isinstance(key, str) or (not isinstance(value, (str, int, float)))
+                for key, value in attributes.items()
+            ]
+        ):
+            raise ValueError("The key attributes should be a dictionary and value should be a string or number")
         return [
             {"Name": key, "Value": str(value).lower() if isinstance(value, bool) else value}
             for key, value in attributes.items()
@@ -101,13 +114,23 @@ class CognitoPy:
             data[attribute["Name"]] = attribute["Value"]
         return data
 
-    def __check_need_secret_hash(
-        self, data: dict, key_secret_hash: str, username: str = None, access_token: str = None
-    ) -> None:
-        if not username:
+    def __check_need_secret_hash(self, key: str, username: str = None, access_token: str = None) -> dict:
+        if (
+            not isinstance(key, str)
+            or not (isinstance(username, str) or username is None)
+            or not (isinstance(access_token, str) or access_token is None)
+        ):
+            raise ValueError("Username, access_token, key should be string")
+        data = {}
+        if username and access_token:
+            raise ValueError("You not provide both username and access_token")
+        if not username and access_token:
             username = self.get_info_user_by_token(access_token=access_token)[self.__USERNAME.lower()]
-        if self.__secret_hash:
-            data[key_secret_hash] = self.__get_secret_hash(username=username)
+        if self.__secret_hash and username:
+            data[key] = self.__get_secret_hash(username=username)
+        elif not username and not access_token:
+            raise ValueError("You must provide access_token when not give the username")
+        return data
 
     def __initiate_auth(
         self, auth_parameters: dict, auth_flow: Union[AdminAuthFlow, AuthFlow], admin: bool = False
@@ -127,9 +150,10 @@ class CognitoPy:
         return response
 
     def __admin_respond_to_auth_challenge(self, challenge_name: ChallengeName, session: str, challenge_responses: dict):
-        self.__check_need_secret_hash(
-            username=challenge_responses[self.__USERNAME], data=challenge_responses, key_secret_hash=self.__SECRET_HASH
+        secret_hash = self.__check_need_secret_hash(
+            username=challenge_responses[self.__USERNAME], key=self.__SECRET_HASH
         )
+        challenge_responses.update(secret_hash)
         try:
             response = self.__client.admin_respond_to_auth_challenge(
                 UserPoolId=self.__userpool_id,
@@ -159,25 +183,31 @@ class CognitoPy:
 
     def close_connection(self) -> None:
         self.__client.close()
+        self.__client_boto3 = None
 
-    def renew_access_token(self, access_token: str, refresh_token: str) -> str:
+    def __renew_access_token(self, access_token: str, refresh_token: str, admin: bool = False) -> str:
         if not isinstance(access_token, str) or not isinstance(refresh_token, str):
             raise ValueError("The access_token and refresh_token should be strings.")
         auth_parameters = {
             self.__REFRESH_TOKEN_KEY.upper(): refresh_token,
         }
-        self.__check_need_secret_hash(
-            access_token=access_token, data=auth_parameters, key_secret_hash=self.__SECRET_HASH
-        )
+        secret_hash = self.__check_need_secret_hash(access_token=access_token, key=self.__SECRET_HASH)
+        auth_parameters.update(secret_hash)
 
-        response = self.__initiate_auth(auth_parameters=auth_parameters, auth_flow=AuthFlow.REFRESH_TOKEN_AUTH)
+        response = self.__initiate_auth(
+            auth_parameters=auth_parameters, auth_flow=AuthFlow.REFRESH_TOKEN_AUTH, admin=admin
+        )
         return response[self.__AUTHENTICATION_RESULT][self.__ACCESS_TOKEN]
+
+    def renew_access_token(self, access_token: str, refresh_token: str) -> str:
+        return self.__renew_access_token(access_token=access_token, refresh_token=refresh_token)
 
     def login(self, username: str, password: str) -> dict:
         if not isinstance(username, str) or not isinstance(password, str):
             raise ValueError("The username and password should be strings.")
         auth_parameters = {self.__USERNAME: username, self.__PASSWORD: password}
-        self.__check_need_secret_hash(username=username, data=auth_parameters, key_secret_hash=self.__SECRET_HASH)
+        secret_hash = self.__check_need_secret_hash(username=username, key=self.__SECRET_HASH)
+        auth_parameters.update(secret_hash)
         response = self.__initiate_auth(auth_flow=AuthFlow.USER_PASSWORD_AUTH, auth_parameters=auth_parameters)
         if self.__CHALLENGE_NAME in response:
             raise ExceptionAuthCognito(
@@ -190,39 +220,48 @@ class CognitoPy:
             self.__REFRESH_TOKEN_KEY: response[self.__AUTHENTICATION_RESULT][self.__REFRESH_TOKEN],
         }
 
-    def register(self, username: str, user_attributes: dict, password: str) -> str:
-        if not isinstance(username, str) or not isinstance(user_attributes, dict) or not isinstance(password, str):
-            raise ValueError("The username, password should be strings and user_attributes should be a dict.")
-        cognito_attributes = self.__dict_to_cognito(user_attributes)
-        arg_secret_hash = {}
-        self.__check_need_secret_hash(username=username, data=arg_secret_hash, key_secret_hash=self.__SECRET_HASH_ARG)
+    def register(
+        self, username: str, password: str, user_attributes: dict = None, validation_data: dict = None
+    ) -> UserRegister:
+        if (
+            not isinstance(username, str)
+            or not (isinstance(user_attributes, dict) or user_attributes is None)
+            or not isinstance(password, str)
+            or not (isinstance(validation_data, dict) or validation_data is None)
+        ):
+            raise ValueError(
+                "The username and password should be strings, user_attributes and validation_data " "should be a dict."
+            )
+        arg_secret_hash = self.__check_need_secret_hash(username=username, key=self.__SECRET_HASH_ARG)
         try:
             response = self.__client.sign_up(
                 ClientId=self.__client_id,
                 Username=username,
                 Password=password,
-                UserAttributes=cognito_attributes,
+                UserAttributes=[] if user_attributes is None else self.__dict_to_cognito(user_attributes),
+                ValidationData=[] if validation_data is None else self.__dict_to_cognito(validation_data),
                 **arg_secret_hash,
             )
         except ClientError as e:
             raise ExceptionAuthCognito(e.response[self.__ERROR][self.__MESSAGE])
-        return response["UserSub"]
+        return UserRegister(**response)
 
-    def resend_confirmation_code(self, username: str) -> None:
+    def resend_confirmation_code(self, username: str) -> CodeDeliveryDetailsSchema:
         if not isinstance(username, str):
             raise ValueError("The username should be a string.")
-        arg_secret_hash = {}
-        self.__check_need_secret_hash(username=username, data=arg_secret_hash, key_secret_hash=self.__SECRET_HASH_ARG)
+        arg_secret_hash = self.__check_need_secret_hash(username=username, key=self.__SECRET_HASH_ARG)
         try:
-            self.__client.resend_confirmation_code(ClientId=self.__client_id, Username=username, **arg_secret_hash)
+            response = self.__client.resend_confirmation_code(
+                ClientId=self.__client_id, Username=username, **arg_secret_hash
+            )
         except ClientError as e:
             raise ExceptionAuthCognito(e.response[self.__ERROR][self.__MESSAGE])
+        return CodeDeliveryDetailsSchema(**response)
 
     def confirm_register(self, username: str, confirmation_code: str) -> None:
         if not isinstance(username, str) or not isinstance(confirmation_code, str):
             raise ValueError("The username and confirmation_code should be strings.")
-        arg_secret_hash = {}
-        self.__check_need_secret_hash(username=username, data=arg_secret_hash, key_secret_hash=self.__SECRET_HASH_ARG)
+        arg_secret_hash = self.__check_need_secret_hash(username=username, key=self.__SECRET_HASH_ARG)
         try:
             self.__client.confirm_sign_up(
                 ClientId=self.__client_id, Username=username, ConfirmationCode=confirmation_code, **arg_secret_hash
@@ -233,8 +272,7 @@ class CognitoPy:
     def initiate_forgot_password(self, username: str) -> None:
         if not isinstance(username, str):
             raise ValueError("The username should be a string.")
-        arg_secret_hash = {}
-        self.__check_need_secret_hash(username=username, data=arg_secret_hash, key_secret_hash=self.__SECRET_HASH_ARG)
+        arg_secret_hash = self.__check_need_secret_hash(username=username, key=self.__SECRET_HASH_ARG)
         try:
             self.__client.forgot_password(ClientId=self.__client_id, Username=username, **arg_secret_hash)
         except ClientError as e:
@@ -253,8 +291,7 @@ class CognitoPy:
     def confirm_forgot_password(self, username: str, confirmation_code: str, password: str) -> None:
         if not isinstance(username, str) or not isinstance(confirmation_code, str) or not isinstance(password, str):
             raise ValueError("The username, confirmation_code and password should be strings.")
-        arg_secret_hash = {}
-        self.__check_need_secret_hash(username=username, data=arg_secret_hash, key_secret_hash=self.__SECRET_HASH_ARG)
+        arg_secret_hash = self.__check_need_secret_hash(username=username, key=self.__SECRET_HASH_ARG)
         try:
             self.__client.confirm_forgot_password(
                 ClientId=self.__client_id,
@@ -293,7 +330,7 @@ class CognitoPy:
     def admin_create_group(self, group_name: str, description: str, precedence: int, role_arn: str = None) -> None:
         if not isinstance(group_name, str) or not isinstance(description, str) or not isinstance(precedence, int):
             raise ValueError(
-                "The group_name, description and role arm should be strings" " and precedence should be an integer."
+                "The group_name, description and role arm should be strings and precedence should be an integer."
             )
         param_role = {"RoleArn": role_arn} if role_arn else {}
         try:
@@ -422,7 +459,8 @@ class CognitoPy:
             self.__USERNAME: username,
             self.__PASSWORD: password,
         }
-        self.__check_need_secret_hash(username=username, data=auth_parameters, key_secret_hash=self.__SECRET_HASH)
+        secret_hash = self.__check_need_secret_hash(username=username, key=self.__SECRET_HASH)
+        auth_parameters.update(secret_hash)
         response = self.__initiate_auth(
             auth_flow=AdminAuthFlow.ADMIN_USER_PASSWORD_AUTH, auth_parameters=auth_parameters, admin=True
         )
@@ -438,18 +476,7 @@ class CognitoPy:
         }
 
     def admin_renew_access_token(self, access_token: str, refresh_token: str) -> str:
-        if not isinstance(access_token, str) or not isinstance(refresh_token, str):
-            raise ValueError("The access_token and refresh_token should be strings.")
-        auth_parameters = {
-            self.__REFRESH_TOKEN_KEY.upper(): refresh_token,
-        }
-        self.__check_need_secret_hash(
-            access_token=access_token, data=auth_parameters, key_secret_hash=self.__SECRET_HASH
-        )
-        response = self.__initiate_auth(
-            auth_flow=AdminAuthFlow.REFRESH_TOKEN_AUTH, auth_parameters=auth_parameters, admin=True
-        )
-        return response[self.__AUTHENTICATION_RESULT][self.__ACCESS_TOKEN]
+        return self.__renew_access_token(access_token=access_token, refresh_token=refresh_token, admin=True)
 
     def admin_list_groups_for_user(self, username: str, limit: int = None, next_token: str = None) -> dict:
         if not isinstance(username, str):
