@@ -7,6 +7,7 @@ from datetime import datetime
 from jose import jwt, JWTError
 from .exceptions import ExceptionJWTCognito, ExceptionAuthCognito, ExceptionConnectionCognito, ExceptionTokenExpired
 from .enums import MessageAction, DesiredDelivery, AuthFlow, AdminAuthFlow, ChallengeName
+from typing import Union
 
 
 class CognitoPy:
@@ -108,7 +109,9 @@ class CognitoPy:
         if self.__secret_hash:
             data[key_secret_hash] = self.__get_secret_hash(username=username)
 
-    def __initiate_auth(self, auth_parameters: dict, auth_flow: AdminAuthFlow | AuthFlow, admin: bool = False) -> dict:
+    def __initiate_auth(
+        self, auth_parameters: dict, auth_flow: Union[AdminAuthFlow, AuthFlow], admin: bool = False
+    ) -> dict:
         try:
             args = {}
             if admin:
