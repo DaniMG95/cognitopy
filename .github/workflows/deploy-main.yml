@@ -5,7 +5,8 @@ on:
     branches:
       - main
 jobs:
-  release-on-push:
+  pypi-publish:
+    name: Upload release to PyPI
     permissions: write-all
     runs-on: ubuntu-latest
     environment:
@@ -20,7 +21,17 @@ jobs:
         with:
           python-version: "3.9"
 
-      - name: Publish package distributions to PyPI
-        uses: JRubics/poetry-publish@v2.0
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
         with:
-          pypi_token: ${{ secrets.PYPI_API_TOKEN }}
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Building Project
+        run: poetry build
+
+      - name: Publish package distributions to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
