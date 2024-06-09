@@ -146,7 +146,7 @@ class CognitoPy:
         secret_hash = self.__check_need_secret_hash(
             username=challenge_responses[self.__USERNAME], key=self.__SECRET_HASH
         )
-        challenge_responses = dict(challenge_responses, **secret_hash)
+        challenge_responses.update(secret_hash)
         try:
             response = self.__client.admin_respond_to_auth_challenge(
                 UserPoolId=self.__userpool_id,
@@ -185,7 +185,7 @@ class CognitoPy:
             self.__REFRESH_TOKEN_KEY.upper(): refresh_token,
         }
         secret_hash = self.__check_need_secret_hash(access_token=access_token, key=self.__SECRET_HASH)
-        auth_parameters = dict(auth_parameters, **secret_hash)
+        auth_parameters.update(secret_hash)
 
         response = self.__initiate_auth(auth_parameters=auth_parameters, auth_flow=AuthFlow.REFRESH_TOKEN_AUTH,
                                         admin=admin)
@@ -199,7 +199,7 @@ class CognitoPy:
             raise ValueError('The username and password should be strings.')
         auth_parameters = {self.__USERNAME: username, self.__PASSWORD: password}
         secret_hash = self.__check_need_secret_hash(username=username, key=self.__SECRET_HASH)
-        auth_parameters = dict(auth_parameters, **secret_hash)
+        auth_parameters.update(secret_hash)
         response = self.__initiate_auth(auth_flow=AuthFlow.USER_PASSWORD_AUTH, auth_parameters=auth_parameters)
         if self.__CHALLENGE_NAME in response:
             raise ExceptionAuthCognito(
@@ -445,7 +445,7 @@ class CognitoPy:
             self.__PASSWORD: password,
         }
         secret_hash = self.__check_need_secret_hash(username=username, key=self.__SECRET_HASH)
-        auth_parameters = dict(auth_parameters, **secret_hash)
+        auth_parameters.update(secret_hash)
         response = self.__initiate_auth(
             auth_flow=AdminAuthFlow.ADMIN_USER_PASSWORD_AUTH, auth_parameters=auth_parameters, admin=True
         )
