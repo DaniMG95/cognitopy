@@ -21,5 +21,5 @@ jobs:
         uses: JRubics/poetry-publish@v2.0
         with:
           python_version: "3.9"
-          repository-url: https://test.pypi.org/legacy/
+          repository_url: https://test.pypi.org/legacy/
           pypi_token: ${{ secrets.TEST_PYPI_API_TOKEN }}
