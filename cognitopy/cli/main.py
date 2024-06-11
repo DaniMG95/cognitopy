@@ -8,11 +8,3 @@ def cli():
 
 
 cli.add_command(hola)
-
-
-def run():
-    cli()
-
-
-if __name__ == "__main__":
-    cli()
