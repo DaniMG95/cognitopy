@@ -43,6 +43,7 @@ boto3 = "^1.34.117"
 pydantic = "^2.7.2"
 python-jose = "^3.3.0"
 click = "^8.1.7"
+toml = "^0.10.2"
 
 
 [tool.poetry.group.test.dependencies]

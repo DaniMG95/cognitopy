@@ -6,7 +6,7 @@ from cognitopy.enums import MessageAction, DesiredDelivery
 
 COGNITO_USERPOOL_ID = "XXX-XXX-XXXXXX"
 COGNITO_APP_CLIENT_ID = "XXXXXXXXXXXXXXXXXXXXXXXX"
-COGNITO_APP_CLIENTE_SECRET = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+COGNITO_APP_CLIENT_SECRET = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 
 # Variables for using the admin functions
 os.environ["AWS_ACCESS_KEY_ID"] = "XXXXXXXXXXXXXXXXXXXXXXXX"
@@ -15,14 +15,14 @@ os.environ["AWS_SECRET_ACCESS_KEY"] = "XXXXXXXXXXXXXXXXXXXXXXXX"
 cognitopy = CognitoPy(
     userpool_id=COGNITO_USERPOOL_ID,
     client_id=COGNITO_APP_CLIENT_ID,
-    client_secret=COGNITO_APP_CLIENTE_SECRET,
+    client_secret=COGNITO_APP_CLIENT_SECRET,
     secret_hash=True,
 )
 
 # Register a new user using context
 
 with CognitoPy(
-    userpool_id=COGNITO_USERPOOL_ID, client_id=COGNITO_APP_CLIENT_ID, client_secret=COGNITO_APP_CLIENTE_SECRET
+    userpool_id=COGNITO_USERPOOL_ID, client_id=COGNITO_APP_CLIENT_ID, client_secret=COGNITO_APP_CLIENT_SECRET
 ) as cognito:
     id_user = cognito.register(username="XXXXX@mail.to", password="XXXXXXX8", user_attributes={})
     print(id_user)
