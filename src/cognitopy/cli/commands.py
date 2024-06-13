@@ -1,6 +1,5 @@
 import click
 from cognitopy.cli.utils import Config
-import tempfile
 from cognitopy import CognitoPy
 from cognitopy.exceptions import ExceptionJWTCognito, ExceptionAuthCognito
 
@@ -56,17 +55,16 @@ def init(config_file):
     else:
         data = {
             "aws": {
-                "key_id": click.prompt("Please enter aws access key id: ", type=str),
+                "key_id": click.prompt("Please enter aws access key id", type=str),
                 "access_key": click.prompt("Please enter aws secret access key", type=str),
             },
             "cognito": {
-                "userpool_id": click.prompt("Please enter userpool id : ", type=str),
-                "app_client_id": click.prompt("Please enter client id: ", type=str),
-                "app_client_secret": click.prompt("Please enter client secret : ", type=str),
+                "userpool_id": click.prompt("Please enter userpool id", type=str),
+                "app_client_id": click.prompt("Please enter client id", type=str),
+                "app_client_secret": click.prompt("Please enter client secret", type=str),
                 "secret_hash": click.confirm("Please enter use secret hash in this session cognitopy"),
             },
         }
-        fp = tempfile.TemporaryFile()
-        config = Config(config_file=fp.name, config_data=data)
+        config = Config(config_data=data)
     if config.status:
         click.echo("Config validated and store it in config file")

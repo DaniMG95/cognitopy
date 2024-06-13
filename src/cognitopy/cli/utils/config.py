@@ -2,6 +2,7 @@ import click
 import toml
 from pathlib import Path
 import os
+import tempfile
 
 
 class Config:
@@ -29,7 +30,7 @@ class Config:
             self.__validate_and_load_config(filepath=config_file)
             self.__save_config()
         else:
-            self.__write_config(filepath=config_file, config=config_data)
+            self.__write_config(config=config_data)
             self.__save_config()
 
     def __save_config(self) -> None:
@@ -56,10 +57,16 @@ class Config:
         else:
             self.__data[self.__COGNITO][self.__SECRET_HASH] = bool(self.__data[self.__COGNITO][self.__SECRET_HASH])
 
-    def __write_config(self, filepath: str, config: dict) -> None:
-        with open(filepath, "w") as f:
-            toml.dump(config, f)
-        self.__validate_and_load_config(filepath=filepath)
+    def __write_config(self, config: dict) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".toml", delete=False) as my_file:
+            click.echo(f"Writing config to {my_file.name}")
+            with open(my_file.name, "w") as f:
+                toml.dump(config, f)
+            self.__validate_and_load_config(filepath=my_file.name)
+        try:
+            os.unlink(my_file.name)
+        except Exception:
+            pass
 
     def __getitem__(self, key: str):
         return self.__data[key]
