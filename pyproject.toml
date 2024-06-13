@@ -4,6 +4,7 @@ version = "1.2.0"
 description = "Python package to use aws cognito in a simple way"
 authors = ["Daniel Muñoz Gonzalez <dani16595@gmail.com>"]
 readme = "README.md"
+packages = [{ include = "cognitopy", from = "src" }]
 repository = "https://github.com/DaniMG95/cognitopy"
 documentation = "https://github.com/DaniMG95/cognitopy/blob/main/README.md"
 
