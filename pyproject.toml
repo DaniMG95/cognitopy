@@ -5,6 +5,7 @@ description = "Python package to use aws cognito in a simple way"
 authors = ["Daniel Muñoz Gonzalez <dani16595@gmail.com>"]
 readme = "README.md"
 packages = [{ include = "cognitopy", from = "src" }]
+keywords = ["aws", "cognito", "authentication", "authorization", "python"]
 repository = "https://github.com/DaniMG95/cognitopy"
 documentation = "https://github.com/DaniMG95/cognitopy/blob/main/README.md"
 
@@ -36,6 +37,10 @@ include=["src/*"]
 
 [tool.coverage.run]
 source=["src"]
+
+
+[tool.poetry.scripts]
+cognitopy = "cognitopy.__main__:main"
 
 
 [tool.poetry.dependencies]
