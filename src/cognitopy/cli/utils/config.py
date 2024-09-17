@@ -107,6 +107,8 @@ class Config:
             click.echo("Need configurate cognito, run command init before running this command.")
             return None
         else:
-            os.environ["AWS_ACCESS_KEY_ID"] = config.key_id
-            os.environ["AWS_SECRET_ACCESS_KEY"] = config.access_key
-            return config
+            if "AWS_ACCESS_KEY_ID" not in os.environ or os.environ["AWS_ACCESS_KEY_ID"] != config.key_id:
+                os.environ["AWS_ACCESS_KEY_ID"] = config.key_id
+            if "AWS_SECRET_ACCESS_KEY" not in os.environ or os.environ["AWS_SECRET_ACCESS_KEY"] != config.access_key:
+                os.environ["AWS_SECRET_ACCESS_KEY"] = config.access_key
+        return config
