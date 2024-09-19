@@ -1,8 +1,8 @@
-import click
 import toml
 from pathlib import Path
 import os
 import tempfile
+from cognitopy.exceptions import ExceptionCLIValidateConfig
 
 
 class Config:
@@ -24,16 +24,12 @@ class Config:
 
     def __init__(self, config_file: str = None, config_data: dict = None):
         self.__data = {}
-        if not config_data and not config_file:
-            self.__validate_and_load_config(filepath=self.__FILE_CONFIG_PATH)
-        elif not config_data:
+        if not config_data:
             self.__validate_and_load_config(filepath=config_file)
-            self.__save_config()
         else:
             self.__write_config(config=config_data)
-            self.__save_config()
 
-    def __save_config(self) -> None:
+    def save_config(self) -> None:
         if not os.path.exists(self.__PATH_CONFIG):
             os.mkdir(self.__PATH_CONFIG)
         with open(self.__FILE_CONFIG_PATH, "w+") as f:
@@ -41,6 +37,8 @@ class Config:
 
     def __validate_and_load_config(self, filepath: str) -> None:
         errors = []
+        if not filepath:
+            filepath = self.__FILE_CONFIG_PATH
         with open(filepath, "r") as f:
             self.__data = toml.load(f)
         for key in self.__PARAMS_CONFIG:
@@ -52,14 +50,13 @@ class Config:
                     for diff_item in diff:
                         errors.append(f"{key}.{diff_item}")
         if errors:
-            click.echo(f"Need this values in config file {', '.join(errors)}")
             self.__data = {}
+            raise ExceptionCLIValidateConfig(f"Need this values in config file {', '.join(errors)}")
         else:
             self.__data[self.__COGNITO][self.__SECRET_HASH] = bool(self.__data[self.__COGNITO][self.__SECRET_HASH])
 
     def __write_config(self, config: dict) -> None:
         with tempfile.NamedTemporaryFile(suffix=".toml", delete=False) as my_file:
-            click.echo(f"Writing config to {my_file.name}")
             with open(my_file.name, "w") as f:
                 toml.dump(config, f)
             self.__validate_and_load_config(filepath=my_file.name)
@@ -104,8 +101,7 @@ class Config:
         try:
             config = cls()
         except FileNotFoundError:
-            click.echo("Need configurate cognito, run command init before running this command.")
-            return None
+            raise ExceptionCLIValidateConfig("Need configurate cognito, run command init before running this command.")
         else:
             if "AWS_ACCESS_KEY_ID" not in os.environ or os.environ["AWS_ACCESS_KEY_ID"] != config.key_id:
                 os.environ["AWS_ACCESS_KEY_ID"] = config.key_id

@@ -12,3 +12,7 @@ class ExceptionConnectionCognito(Exception):
 
 class ExceptionJWTCognito(Exception):
     pass
+
+
+class ExceptionCLIValidateConfig(Exception):
+    pass

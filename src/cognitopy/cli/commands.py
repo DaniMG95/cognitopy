@@ -1,15 +1,18 @@
 import click
-from cognitopy.cli.utils import Config
+from cognitopy.cli.config import Config
 from cognitopy import CognitoPy
-from cognitopy.exceptions import ExceptionJWTCognito, ExceptionAuthCognito
+from cognitopy.exceptions import ExceptionJWTCognito, ExceptionAuthCognito, ExceptionCLIValidateConfig
 from functools import wraps
 
 
 def init_cognitopy(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-        config = Config.load_config()
-        if config:
+        try:
+            config = Config.load_config()
+        except ExceptionCLIValidateConfig as e:
+            click.echo(str(e))
+        else:
             with CognitoPy(userpool_id=config.userpool_id, client_id=config.app_client_id,
                            client_secret=config.app_client_secret, secret_hash=config.secret_hash) as cognitopy:
                 func(cognitopy=cognitopy, *args, **kwargs)
@@ -65,5 +68,6 @@ def init(config_file):
             },
         }
         config = Config(config_data=data)
+    config.save_config()
     if config.status:
         click.echo("Config validated and store it in config file")
