@@ -18,27 +18,28 @@ class Config:
         __AWS: [__KEY_ID, __ACCESS_KEY],
         __COGNITO: [__USERPOOL_ID, __APP_CLIENT_ID, __APP_CLIENT_SECRET, __SECRET_HASH],
     }
-    __PATH_CONFIG = f"{Path.home()}\\.pycognito" if os.name == "nt" else f"{Path.home()}/.pycognito"
-    __FILE_CONFIG = "\\config.toml" if os.name == "nt" else "/config.toml"
-    __FILE_CONFIG_PATH = f"{__PATH_CONFIG}{__FILE_CONFIG}"
 
     def __init__(self, config_file: str = None, config_data: dict = None):
         self.__data = {}
+        self.__path_config = f"{Path.home()}\\.pycognito" if os.name == "nt" else f"{Path.home()}/.pycognito"
+        file_config = "\\config.toml" if os.name == "nt" else "/config.toml"
+        self.__file_config_path = f"{self.__path_config}{file_config}"
+
         if not config_data:
             self.__validate_and_load_config(filepath=config_file)
         else:
             self.__write_config(config=config_data)
 
     def save_config(self) -> None:
-        if not os.path.exists(self.__PATH_CONFIG):
-            os.mkdir(self.__PATH_CONFIG)
-        with open(self.__FILE_CONFIG_PATH, "w+") as f:
+        if not os.path.exists(self.__path_config):
+            os.mkdir(self.__path_config)
+        with open(self.__file_config_path, "w+") as f:
             toml.dump(self.__data, f)
 
     def __validate_and_load_config(self, filepath: str) -> None:
         errors = []
         if not filepath:
-            filepath = self.__FILE_CONFIG_PATH
+            filepath = self.__file_config_path
         with open(filepath, "r") as f:
             self.__data = toml.load(f)
         for key in self.__PARAMS_CONFIG:

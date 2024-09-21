@@ -48,7 +48,7 @@ def login(cognitopy: CognitoPy, username: str, password: str):
         click.echo(f'access_token = {tokens["access_token"]}\nrefresh_token = {tokens["refresh_token"]})')
 
 
-@click.option("--config-file", required=False, type=str)
+@click.option("--config-file", "-f", required=False, type=str)
 @click.command()
 def init(config_file):
     if config_file:
