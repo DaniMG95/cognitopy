@@ -1,29 +1,27 @@
 import click
 from cognitopy import CognitoPy
-from cognitopy.exceptions import ExceptionJWTCognito, ExceptionAuthCognito
+from cognitopy.exceptions import ExceptionAuthCognito
 from cognitopy.cli.commands import init_cognitopy
 
 
 @click.command()
-@click.option("--token", "-t", required=True, type=str)
+@click.option("--username", "-u", required=True, type=str)
+@click.option("--password", "-p", required=True, type=str)
 @init_cognitopy
-def check_expired_token(cognitopy: CognitoPy, token: str):
+def login(cognitopy: CognitoPy, username: str, password: str):
     try:
-        result = cognitopy.check_expired_token(access_token=token)
-    except ExceptionJWTCognito as e:
+        tokens = cognitopy.login(username=username, password=password)
+    except ExceptionAuthCognito as e:
         click.echo(e)
     else:
-        if result:
-            click.echo("The token is expired")
-        else:
-            click.echo("The token is not expired")
+        click.echo(f'access_token = {tokens["access_token"]}\nrefresh_token = {tokens["refresh_token"]})')
 
 
 @click.command()
 @click.option("--token", "-t", required=True, type=str)
 @click.option("--refresh", "-r", required=True, type=str)
 @init_cognitopy
-def refresh_token(cognitopy: CognitoPy, token: str, refresh: str):
+def refresh(cognitopy: CognitoPy, token: str, refresh: str):
     try:
         token = cognitopy.renew_access_token(access_token=token, refresh_token=refresh)
     except ExceptionAuthCognito as e:
@@ -35,7 +33,7 @@ def refresh_token(cognitopy: CognitoPy, token: str, refresh: str):
 @click.command()
 @click.option("--token", "-t", required=True, type=str)
 @init_cognitopy
-def delete_user_token(cognitopy: CognitoPy, token: str):
+def delete_user(cognitopy: CognitoPy, token: str):
     try:
         cognitopy.delete_user(access_token=token)
     except ExceptionAuthCognito as e:
