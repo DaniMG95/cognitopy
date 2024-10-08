@@ -23,23 +23,11 @@ def create(cognitopy: CognitoPy, username: str, password: str):
 @init_cognitopy
 def confirm(cognitopy: CognitoPy, username: str, code):
     try:
-        cognitopy.confirm_register(username=username, confirmation_code=code)
+        cognitopy.admin_confirm_register(username=username)
     except ExceptionAuthCognito as e:
         click.echo(e)
     else:
         click.echo("User confirmed successfully")
-
-
-@click.command()
-@click.option("--username", "-u", required=True, type=str)
-@init_cognitopy
-def resend_confirmation(cognitopy: CognitoPy, username: str):
-    try:
-        cognitopy.resend_confirmation_code(username=username)
-    except ExceptionAuthCognito as e:
-        click.echo(e)
-    else:
-        click.echo("Confirmation code resent successfully")
 
 
 @click.command()
@@ -52,3 +40,9 @@ def delete(cognitopy: CognitoPy, username: str):
         click.echo(e)
     else:
         click.echo("User deleted successfully")
+
+# Disabled user
+# Enable user
+# get user
+# list users
+# List users in group

@@ -1,8 +1,11 @@
 # flake8: noqa
 import click
 from cognitopy.cli.commands import init
-from cognitopy.cli.commands import user, group, password, session, user_maintenance
-import inspect
+from cognitopy.cli.commands import user as user_commands
+from cognitopy.cli.commands import group as group_commands
+from cognitopy.cli.commands import password as password_commands
+from cognitopy.cli.commands import session as session_commands
+from cognitopy.cli.commands import user_maintenance as user_maintenance_commands
 
 
 @click.group()
@@ -12,45 +15,44 @@ def cli():
 
 @cli.group()
 def user():
-    """Comandos relacionados con el usuario."""
+    """User-related commands."""
     pass
 
 
 @cli.group()
 def group():
-    """Comandos relacionados con el usuario."""
+    """Group-related commands."""
     pass
 
 
 @cli.group()
 def password():
-    """Comandos relacionados con el usuario."""
+    """Password-related commands."""
     pass
 
 
 @cli.group()
 def session():
-    """Comandos relacionados con el usuario."""
+    """Session-related commands."""
     pass
 
 
 @cli.group()
 def user_maintenance():
-    """Comandos relacionados con el usuario."""
+    """User Maintenance-related commands."""
     pass
 
 
 cli.add_command(init)
+commands_by_group = {
+    user: user_commands,
+    group: group_commands,
+    password: password_commands,
+    session: session_commands,
+    user_maintenance: user_maintenance_commands
+}
 
-user_commands = [func for _, func in inspect.getmembers(user, inspect.isfunction)]
-group_commands = [func for _, func in inspect.getmembers(group)]
-password_commands = [func for _, func in inspect.getmembers(password)]
-session_commands = [func for _, func in inspect.getmembers(session)]
-user_maintenance_commands = [func for _, func in inspect.getmembers(user_maintenance)]
-
-for func in user_commands:
-    user.add_command(func)
-for func in group_commands:
-    group.add_command(func)
-for func in session_commands:
-    session.add_command(func)
+for group, commands in commands_by_group.items():
+    for name, cmd in commands.__dict__.items():
+        if isinstance(cmd, click.Command):
+            group.add_command(cmd)

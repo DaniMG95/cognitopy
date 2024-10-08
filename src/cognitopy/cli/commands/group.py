@@ -30,3 +30,9 @@ def add_user(cognitopy: CognitoPy, name: str, group: str):
         click.echo(e)
     else:
         click.echo("User added to group successfully")
+
+
+# Delete group
+# Delete user from group
+# List groups
+# List groups by user

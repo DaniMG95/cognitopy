@@ -55,3 +55,5 @@ def change_password(cognitopy: CognitoPy, previous_password: str, proposed_passw
         click.echo(e)
     else:
         click.echo("Password changed successfully")
+
+# Revoke refresh token
