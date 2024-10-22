@@ -1,70 +1,55 @@
 import toml
 from pathlib import Path
 import os
-import tempfile
 from cognitopy.exceptions import ExceptionCLIValidateConfig
 
 
 class Config:
-    __AWS = "aws"
     __ACCESS_KEY = "access_key"
     __KEY_ID = "key_id"
     __USERPOOL_ID = "userpool_id"
-    __COGNITO = "cognito"
     __APP_CLIENT_ID = "app_client_id"
     __APP_CLIENT_SECRET = "app_client_secret"
     __SECRET_HASH = "secret_hash"
-    __PARAMS_CONFIG = {
-        __AWS: [__KEY_ID, __ACCESS_KEY],
-        __COGNITO: [__USERPOOL_ID, __APP_CLIENT_ID, __APP_CLIENT_SECRET, __SECRET_HASH],
-    }
+    __PARAMS_CONFIG = [__KEY_ID, __ACCESS_KEY, __USERPOOL_ID, __APP_CLIENT_ID, __APP_CLIENT_SECRET, __SECRET_HASH]
+    __PATH_CONFIG = f"{Path.home()}\\.pycognito" if os.name == "nt" else f"{Path.home()}/.pycognito"
+    __FILE_CONFIG = "\\config.toml" if os.name == "nt" else "/config.toml"
+    __FILE_CONFIG_PATH = f"{__PATH_CONFIG}{__FILE_CONFIG}"
 
-    def __init__(self, config_file: str = None, config_data: dict = None):
+    def __init__(self, name: str = None):
         self.__data = {}
-        self.__path_config = f"{Path.home()}\\.pycognito" if os.name == "nt" else f"{Path.home()}/.pycognito"
-        file_config = "\\config.toml" if os.name == "nt" else "/config.toml"
-        self.__file_config_path = f"{self.__path_config}{file_config}"
+        self.__name = name
 
-        if not config_data:
-            self.__validate_and_load_config(filepath=config_file)
-        else:
-            self.__write_config(config=config_data)
+    @classmethod
+    def save_config(cls) -> None:
+        if not os.path.exists(cls.__PATH_CONFIG):
+            os.mkdir(cls.__PATH_CONFIG)
+        with open(cls.__FILE_CONFIG_PATH, "w+") as f:
+            toml.dump({}, f)
 
-    def save_config(self) -> None:
-        if not os.path.exists(self.__path_config):
-            os.mkdir(self.__path_config)
-        with open(self.__file_config_path, "w+") as f:
-            toml.dump(self.__data, f)
+    @classmethod
+    def validate_file(cls, filepath: str) -> None:
+        errors = ""
+        data_config = {}
+        if os.path.exists(cls.__FILE_CONFIG_PATH):
+            with open(cls.__FILE_CONFIG_PATH, "r") as f:
+                data_config = toml.load(f)
 
-    def __validate_and_load_config(self, filepath: str) -> None:
-        errors = []
-        if not filepath:
-            filepath = self.__file_config_path
         with open(filepath, "r") as f:
-            self.__data = toml.load(f)
-        for key in self.__PARAMS_CONFIG:
-            if key not in self.__data:
-                errors.append(key)
-            else:
-                diff = set(self.__PARAMS_CONFIG[key]) - set(self.__data[key])
-                if diff:
-                    for diff_item in diff:
-                        errors.append(f"{key}.{diff_item}")
+            data = toml.load(f)
+        for name in data.keys():
+            if name in data_config.keys():
+                raise ExceptionCLIValidateConfig(f"This name config {name} already exists in config file")
+            if not isinstance(data[name], dict):
+                raise ExceptionCLIValidateConfig(f"Need these values {', '.join(cls.__PARAMS_CONFIG)} into in name "
+                                                 "config")
+            diff = set(cls.__PARAMS_CONFIG) - set(data[name])
+            if diff:
+                errors += f"Config {name} need this values: {', '.join(diff)}\n"
         if errors:
-            self.__data = {}
-            raise ExceptionCLIValidateConfig(f"Need this values in config file {', '.join(errors)}")
-        else:
-            self.__data[self.__COGNITO][self.__SECRET_HASH] = bool(self.__data[self.__COGNITO][self.__SECRET_HASH])
-
-    def __write_config(self, config: dict) -> None:
-        with tempfile.NamedTemporaryFile(suffix=".toml", delete=False) as my_file:
-            with open(my_file.name, "w") as f:
-                toml.dump(config, f)
-            self.__validate_and_load_config(filepath=my_file.name)
-        try:
-            os.unlink(my_file.name)
-        except Exception:
-            pass
+            raise ExceptionCLIValidateConfig(f"Need these values in config file:\n {errors}")
+        # else:
+        #     self.__data[self.__SECRET_HASH] = bool(self.__data[self.__SECRET_HASH])
 
     def __getitem__(self, key: str):
         return self.__data[key]
@@ -75,27 +60,27 @@ class Config:
 
     @property
     def key_id(self) -> str:
-        return self.__data[self.__AWS][self.__KEY_ID]
+        return self.__data[self.__KEY_ID]
 
     @property
     def access_key(self) -> str:
-        return self.__data[self.__AWS][self.__ACCESS_KEY]
+        return self.__data[self.__ACCESS_KEY]
 
     @property
     def userpool_id(self) -> str:
-        return self.__data[self.__COGNITO][self.__USERPOOL_ID]
+        return self.__data[self.__USERPOOL_ID]
 
     @property
     def app_client_id(self) -> str:
-        return self.__data[self.__COGNITO][self.__APP_CLIENT_ID]
+        return self.__data[self.__APP_CLIENT_ID]
 
     @property
     def app_client_secret(self) -> str:
-        return self.__data[self.__COGNITO][self.__APP_CLIENT_SECRET]
+        return self.__data[self.__APP_CLIENT_SECRET]
 
     @property
     def secret_hash(self) -> bool:
-        return self.__data[self.__COGNITO][self.__SECRET_HASH]
+        return self.__data[self.__SECRET_HASH]
 
     @classmethod
     def load_config(cls):
