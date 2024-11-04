@@ -15,41 +15,79 @@ class Config:
     __PATH_CONFIG = f"{Path.home()}\\.pycognito" if os.name == "nt" else f"{Path.home()}/.pycognito"
     __FILE_CONFIG = "\\config.toml" if os.name == "nt" else "/config.toml"
     __FILE_CONFIG_PATH = f"{__PATH_CONFIG}{__FILE_CONFIG}"
+    __CURRENT = "current"
+    __PROJECT = "project"
 
-    def __init__(self, name: str = None):
-        self.__data = {}
-        self.__name = name
+    def __init__(self, file_path: str = __FILE_CONFIG_PATH):
+        with open(file_path, "r") as f:
+            data = toml.load(f)
+        self.validate_config(config=data)
+        if self.__CURRENT not in data.keys():
+            raise ExceptionCLIValidateConfig("Need set current project")
+        self.__name = data[self.__CURRENT][self.__PROJECT]
+        self.__data = data[self.__name]
+        self.__data[self.__SECRET_HASH] = bool(self.__data[self.__SECRET_HASH])
+        key_id = self.__data[self.__KEY_ID]
+        access_key = self.__data[self.__ACCESS_KEY]
+        if "AWS_ACCESS_KEY_ID" not in os.environ or os.environ["AWS_ACCESS_KEY_ID"] != key_id:
+            os.environ["AWS_ACCESS_KEY_ID"] = key_id
+        if "AWS_SECRET_ACCESS_KEY" not in os.environ or os.environ["AWS_SECRET_ACCESS_KEY"] != access_key:
+            os.environ["AWS_SECRET_ACCESS_KEY"] = access_key
 
     @classmethod
-    def save_config(cls) -> None:
+    def save_config(cls, data_config) -> None:
         if not os.path.exists(cls.__PATH_CONFIG):
             os.mkdir(cls.__PATH_CONFIG)
-        with open(cls.__FILE_CONFIG_PATH, "w+") as f:
-            toml.dump({}, f)
+        with open(cls.__FILE_CONFIG_PATH, "a") as f:
+            toml.dump(data_config, f)
+        with open(cls.__FILE_CONFIG_PATH, "r") as f:
+            data = toml.load(f)
+        if cls.__CURRENT not in data.keys():
+            cls.set_name()
 
     @classmethod
-    def validate_file(cls, filepath: str) -> None:
-        errors = ""
+    def validate_config_file(cls, filepath: str) -> None:
         data_config = {}
+        with open(filepath, "r") as f:
+            config = toml.load(f)
         if os.path.exists(cls.__FILE_CONFIG_PATH):
             with open(cls.__FILE_CONFIG_PATH, "r") as f:
                 data_config = toml.load(f)
+        cls.validate_config(config=config, data_config=data_config)
 
-        with open(filepath, "r") as f:
-            data = toml.load(f)
-        for name in data.keys():
+    @classmethod
+    def validate_config(cls, config: dict, data_config: dict = {}) -> None:
+        errors = ""
+        names = [name for name in config.keys() if name != cls.__CURRENT]
+        for name in names:
             if name in data_config.keys():
                 raise ExceptionCLIValidateConfig(f"This name config {name} already exists in config file")
-            if not isinstance(data[name], dict):
+            if not isinstance(config[name], dict):
                 raise ExceptionCLIValidateConfig(f"Need these values {', '.join(cls.__PARAMS_CONFIG)} into in name "
                                                  "config")
-            diff = set(cls.__PARAMS_CONFIG) - set(data[name])
+            diff = set(cls.__PARAMS_CONFIG) - set(config[name])
             if diff:
                 errors += f"Config {name} need this values: {', '.join(diff)}\n"
         if errors:
-            raise ExceptionCLIValidateConfig(f"Need these values in config file:\n {errors}")
-        # else:
-        #     self.__data[self.__SECRET_HASH] = bool(self.__data[self.__SECRET_HASH])
+            raise ExceptionCLIValidateConfig(f"Need these values in config file: \n {errors}")
+
+    @classmethod
+    def get_config(cls):
+        with open(cls.__FILE_CONFIG_PATH, "r") as f:
+            return toml.load(f)
+
+    @classmethod
+    def set_name(cls, name: str = None):
+        with open(cls.__FILE_CONFIG_PATH, "r") as f:
+            data = toml.load(f)
+        if not name:
+            name = [name for name in data.keys() if name != cls.__CURRENT][0]
+        if cls.__CURRENT not in data.keys():
+            data[cls.__CURRENT] = {cls.__PROJECT: name}
+        else:
+            data[cls.__CURRENT][cls.__PROJECT] = name
+        with open(cls.__FILE_CONFIG_PATH, "w") as f:
+            toml.dump(data, f)
 
     def __getitem__(self, key: str):
         return self.__data[key]
@@ -82,15 +120,6 @@ class Config:
     def secret_hash(self) -> bool:
         return self.__data[self.__SECRET_HASH]
 
-    @classmethod
-    def load_config(cls):
-        try:
-            config = cls()
-        except FileNotFoundError:
-            raise ExceptionCLIValidateConfig("Need configurate cognito, run command init before running this command.")
-        else:
-            if "AWS_ACCESS_KEY_ID" not in os.environ or os.environ["AWS_ACCESS_KEY_ID"] != config.key_id:
-                os.environ["AWS_ACCESS_KEY_ID"] = config.key_id
-            if "AWS_SECRET_ACCESS_KEY" not in os.environ or os.environ["AWS_SECRET_ACCESS_KEY"] != config.access_key:
-                os.environ["AWS_SECRET_ACCESS_KEY"] = config.access_key
-        return config
+    @property
+    def name(self) -> str:
+        return self.__name
