@@ -6,6 +6,7 @@ from cognitopy.cli.commands import group as group_commands
 from cognitopy.cli.commands import password as password_commands
 from cognitopy.cli.commands import session as session_commands
 from cognitopy.cli.commands import user_maintenance as user_maintenance_commands
+from cognitopy.cli.commands import config as config_commands
 
 
 @click.group()
@@ -42,6 +43,11 @@ def user_maintenance():
     """User Maintenance-related commands."""
     pass
 
+@cli.group()
+def config():
+    """Config-related commands."""
+    pass
+
 
 cli.add_command(init)
 commands_by_group = {
@@ -49,7 +55,8 @@ commands_by_group = {
     group: group_commands,
     password: password_commands,
     session: session_commands,
-    user_maintenance: user_maintenance_commands
+    user_maintenance: user_maintenance_commands,
+    config: config_commands
 }
 
 for group, commands in commands_by_group.items():

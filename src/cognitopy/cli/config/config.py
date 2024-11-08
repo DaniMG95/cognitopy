@@ -18,13 +18,17 @@ class Config:
     __CURRENT = "current"
     __PROJECT = "project"
 
-    def __init__(self, file_path: str = __FILE_CONFIG_PATH):
-        with open(file_path, "r") as f:
-            data = toml.load(f)
+    def __init__(self, name: str = None):
+        data = self.get_config()
         self.validate_config(config=data)
         if self.__CURRENT not in data.keys():
             raise ExceptionCLIValidateConfig("Need set current project")
-        self.__name = data[self.__CURRENT][self.__PROJECT]
+        if not name:
+            self.__name = data[self.__CURRENT][self.__PROJECT]
+        else:
+            if name not in data:
+                raise ExceptionCLIValidateConfig(f"Name {name} not exists in config file")
+            self.__name = name
         self.__data = data[self.__name]
         self.__data[self.__SECRET_HASH] = bool(self.__data[self.__SECRET_HASH])
         key_id = self.__data[self.__KEY_ID]
@@ -35,10 +39,13 @@ class Config:
             os.environ["AWS_SECRET_ACCESS_KEY"] = access_key
 
     @classmethod
-    def save_config(cls, data_config) -> None:
+    def save_config(cls, data_config, replace: bool = False) -> None:
+        mode = "a"
         if not os.path.exists(cls.__PATH_CONFIG):
             os.mkdir(cls.__PATH_CONFIG)
-        with open(cls.__FILE_CONFIG_PATH, "a") as f:
+        if replace:
+            mode = "w"
+        with open(cls.__FILE_CONFIG_PATH, mode) as f:
             toml.dump(data_config, f)
         with open(cls.__FILE_CONFIG_PATH, "r") as f:
             data = toml.load(f)
@@ -72,16 +79,24 @@ class Config:
             raise ExceptionCLIValidateConfig(f"Need these values in config file: \n {errors}")
 
     @classmethod
-    def get_config(cls):
+    def get_config(cls) -> dict:
         with open(cls.__FILE_CONFIG_PATH, "r") as f:
             return toml.load(f)
 
     @classmethod
+    def get_projects(cls):
+        data = cls.get_config()
+        return [name for name in data.keys() if name != cls.__CURRENT]
+
+    @classmethod
     def set_name(cls, name: str = None):
-        with open(cls.__FILE_CONFIG_PATH, "r") as f:
-            data = toml.load(f)
+        data = cls.get_config()
+        names = [name for name in data.keys() if name != cls.__CURRENT]
         if not name:
-            name = [name for name in data.keys() if name != cls.__CURRENT][0]
+            name = names[0]
+        else:
+            if name not in names:
+                raise ExceptionCLIValidateConfig(f"Name {name} not exists in config file")
         if cls.__CURRENT not in data.keys():
             data[cls.__CURRENT] = {cls.__PROJECT: name}
         else:
@@ -89,12 +104,27 @@ class Config:
         with open(cls.__FILE_CONFIG_PATH, "w") as f:
             toml.dump(data, f)
 
+    @classmethod
+    def delete(cls, name: str):
+        data = cls.get_config()
+        if name not in data:
+            raise ExceptionCLIValidateConfig(f"Name {name} not exists in config file")
+        del data[name]
+        cls.save_config(data_config=data, replace=True)
+
+    @classmethod
+    def edit(cls, name: str, field: str, value: str):
+        data = cls.get_config()
+        if name not in data and name != cls.__CURRENT:
+            raise ExceptionCLIValidateConfig(f"Name {name} not exists in config file")
+        if field not in cls.__PARAMS_CONFIG:
+            raise ExceptionCLIValidateConfig(f"Field {field} not exists in config file, need these values "
+                                             f"{cls.__PARAMS_CONFIG}")
+        data[name][field] = value
+        cls.save_config(data_config=data, replace=True)
+
     def __getitem__(self, key: str):
         return self.__data[key]
-
-    @property
-    def status(self) -> bool:
-        return bool(self.__data)
 
     @property
     def key_id(self) -> str:
