@@ -2,7 +2,7 @@ from unittest import TestCase
 from unittest.mock import patch, Mock, call
 from freezegun import freeze_time
 from jose import JWTError
-from cognitopy.cognitopy import CognitoPy
+from cognitopy import CognitoPy
 from cognitopy.exceptions import (
     ExceptionJWTCognito,
     ExceptionAuthCognito,
