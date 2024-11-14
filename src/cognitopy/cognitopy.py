@@ -31,6 +31,7 @@ class CognitoPy:
     __SMS_MFA_CODE = "SMS_MFA_CODE"
     __CHALLENGE_NAME = "ChallengeName"
     __SECRET_HASH_ARG = "SecretHash"
+    __GROUP = "group"
     __client_boto3 = None
 
     def __init__(self, userpool_id: str, client_id: str, client_secret: str, secret_hash: bool = False):
@@ -102,7 +103,7 @@ class CognitoPy:
             for key, value in attributes.items()
         ]
 
-    def __user_to_dict(self, user: dict) -> dict:
+    def __user_to_dict(self, user: dict, attributes: dict) -> dict:
         data = {
             self.__USERNAME.lower(): user[self.__USERNAME.capitalize()],
             "enabled": user["Enabled"],
@@ -110,7 +111,7 @@ class CognitoPy:
             "user_create_date": user["UserCreateDate"],
             "user_last_modified_date": user["UserLastModifiedDate"],
         }
-        for attribute in user["UserAttributes"]:
+        for attribute in attributes:
             data[attribute["Name"]] = attribute["Value"]
         return data
 
@@ -288,6 +289,23 @@ class CognitoPy:
         except ClientError as e:
             raise ExceptionAuthCognito(e.response[self.__ERROR][self.__MESSAGE])
 
+    def list_users(self, attributes_get: list = [], limit: int = None, group: str = None) -> list[dict]:
+        try:
+            params = {}
+            if attributes_get:
+                params["AttributesToGet"] = attributes_get
+            if limit:
+                params["Limit"] = limit
+            if group:
+                params["GroupName"] = group
+                function = self.__client.list_users_in_group
+            else:
+                function = self.__client.list_users
+            response = function(UserPoolId=self.__userpool_id, **params)
+        except ClientError as e:
+            raise ExceptionAuthCognito(e.response[self.__ERROR][self.__MESSAGE])
+        return [self.__user_to_dict(user=user, attributes=user["Attributes"]) for user in response["Users"]]
+
     def confirm_forgot_password(self, username: str, confirmation_code: str, password: str) -> None:
         if not isinstance(username, str) or not isinstance(confirmation_code, str) or not isinstance(password, str):
             raise ValueError("The username, confirmation_code and password should be strings.")
@@ -372,6 +390,26 @@ class CognitoPy:
         except ClientError as e:
             raise ExceptionAuthCognito(e.response[self.__ERROR][self.__MESSAGE])
 
+    def update_group(self, group: str, description: str = None, role: str = None, precedence: int = None):
+        params = {}
+        if description:
+            params["Description"] = description
+        if role:
+            params["RoleArn"] = role
+        if precedence:
+            params["Precedence"] = precedence
+        try:
+            self.__client.update_group(UserPoolId=self.__userpool_id, GroupName=group, **params)
+        except ClientError as e:
+            raise ExceptionAuthCognito(e.response[self.__ERROR][self.__MESSAGE])
+
+    def get_group(self, group: str) -> dict:
+        try:
+            response = self.__client.get_group(UserPoolId=self.__userpool_id, GroupName=group)
+        except ClientError as e:
+            raise ExceptionAuthCognito(e.response[self.__ERROR][self.__MESSAGE])
+        return response[self.__GROUP.capitalize()]
+
     def get_info_user_by_token(self, access_token: str) -> dict:
         if not isinstance(access_token, str):
             raise ValueError("The access_token should be a string.")
@@ -450,7 +488,7 @@ class CognitoPy:
             response = self.__client.admin_get_user(UserPoolId=self.__userpool_id, Username=username)
         except ClientError as e:
             raise ExceptionAuthCognito(e.response[self.__ERROR][self.__MESSAGE])
-        return self.__user_to_dict(user=response)
+        return self.__user_to_dict(user=response, attributes=response["UserAttributes"])
 
     def admin_login(self, username: str, password: str) -> dict:
         if not isinstance(username, str) or not isinstance(password, str):
@@ -478,6 +516,16 @@ class CognitoPy:
     def admin_renew_access_token(self, access_token: str, refresh_token: str) -> str:
         return self.__renew_access_token(access_token=access_token, refresh_token=refresh_token, admin=True)
 
+    def list_groups(self, limit: int = None) -> dict:
+        try:
+            params = {}
+            if limit:
+                params["Limit"] = limit
+            response = self.__client.list_groups(UserPoolId=self.__userpool_id, **params)
+        except ClientError as e:
+            raise ExceptionAuthCognito(e.response[self.__ERROR][self.__MESSAGE])
+        return response[self.__GROUPS.capitalize()]
+
     def admin_list_groups_for_user(self, username: str, limit: int = None, next_token: str = None) -> dict:
         if not isinstance(username, str):
             raise ValueError("The username should be a string.")
@@ -496,7 +544,7 @@ class CognitoPy:
             )
         except ClientError as e:
             raise ExceptionAuthCognito(e.response[self.__ERROR][self.__MESSAGE])
-        return response
+        return response[self.__GROUPS.capitalize()]
 
     def admin_reset_user_password(self, username: str) -> None:
         if not isinstance(username, str):
