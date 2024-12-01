@@ -5,9 +5,10 @@ import hashlib
 import base64
 from datetime import datetime
 from jose import jwt, JWTError
-from .exceptions import ExceptionJWTCognito, ExceptionAuthCognito, ExceptionConnectionCognito, ExceptionTokenExpired
-from .enums import MessageAction, DesiredDelivery, AuthFlow, AdminAuthFlow, ChallengeName
-from .schemas import UserRegister, CodeDeliveryDetailsSchema
+from cognitopy.exceptions import (ExceptionJWTCognito, ExceptionAuthCognito, ExceptionConnectionCognito,
+                                  ExceptionTokenExpired)
+from cognitopy.enums import MessageAction, DesiredDelivery, AuthFlow, AdminAuthFlow, ChallengeName
+from cognitopy.schemas import UserRegister, CodeDeliveryDetailsSchema
 from typing import Union
 
 
