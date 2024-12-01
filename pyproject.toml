@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "cognitopy"
-version = "1.1.6-dev0"
+version = "1.1.6"
 description = "Python package to use aws cognito in a simple way"
 authors = ["Daniel Muñoz Gonzalez <dani16595@gmail.com>"]
 readme = "README.md"
